@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -24,7 +25,17 @@ func main() {
 	if dsn == "" {
 		log.Fatal("DATABASE_URL not set")
 	}
-	db, err := sql.Open("postgres", dsn)
+	connection, err := url.Parse(dsn)
+	if err != nil || (connection.Scheme != "postgres" && connection.Scheme != "postgresql") {
+		log.Fatal("DATABASE_URL must be a PostgreSQL URL")
+	}
+	parameters := connection.Query()
+	parameters.Set("search_path", "tasknest")
+	if parameters.Get("sslmode") == "" {
+		parameters.Set("sslmode", "require")
+	}
+	connection.RawQuery = parameters.Encode()
+	db, err := sql.Open("postgres", connection.String())
 	if err != nil {
 		log.Fatal("Failed to open DB:", err)
 	}

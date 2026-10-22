@@ -1,52 +1,94 @@
-# StudentConnect Deployment Guide
+# TaskNest deployment with Supabase
 
-This guide explains how to prepare and deploy your StudentConnect application to a production server (AWS, Render, DigitalOcean, etc.).
+Supabase now supplies PostgreSQL and persistent file storage. The Go backend
+continues to handle login, authorization, and uploads. AWS and outbound email
+services are not required.
 
-## 1. Prepare the Frontend
-Before deploying, you must build the frontend into a set of optimized static files.
+## Supabase project
 
-1. Navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
-2. Build the project:
-   ```bash
-   npm run build
-   ```
-3. This will create a `dist` folder. Copy this `dist` folder into the `backend` directory so the Go server can serve it:
-   ```bash
-   cp -r dist ../backend/
-   ```
+[TaskNest dashboard](https://supabase.com/dashboard/project/dpvluojenuonxuasbvyk)
+— Mumbai (`ap-south-1`), created under the user's free organization.
+The initial app schema is already applied. There was no old TaskNest data to move.
 
-## 2. Configure environment variables (Backend)
-Your production server needs several environment variables to run securely. Do NOT use the same `.env` values as development.
+The remaining configuration is local: fill `DATABASE_URL` and
+`SUPABASE_SECRET_KEY` in `backend/.env` or the deployment host's secret settings.
+The connector cannot retrieve those private credentials. Reference:
+[Supabase database connections](https://supabase.com/docs/guides/database/connecting-to-postgres)
+and [API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 
-| Variable | Description |
-| :--- | :--- |
-| `GIN_MODE` | Set to `release` for production performance & security (enables Secure cookies). |
-| `DATABASE_URL` | Your production CockroachDB/PostgreSQL connection string. |
-| `JWT_SECRET` | A long, random string (e.g., `openssl rand -base64 32`). |
-| `PRODUCTION_DOMAIN` | Your actual domain (e.g., `studentconnect.app`) to allow CORS. |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Path to your production Firebase credentials. |
-| `PORT` | (Optional) The port your server will listen on (defaults to 8080). |
+## Backend environment
 
-## 3. Run the Server
-Once you have the `dist` folder inside your backend and your environment variables set, you can start the server:
-
-```bash
-cd backend
-go run main.go
+```env
+GIN_MODE=release
+PORT=8080
+PRODUCTION_DOMAIN=https://YOUR_FRONTEND_DOMAIN
+JWT_SECRET=YOUR_LONG_RANDOM_SECRET
+DATABASE_URL=YOUR_SUPABASE_POSTGRES_URI_WITH_SSLMODE_REQUIRE
+SUPABASE_URL=https://dpvluojenuonxuasbvyk.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_YOUR_BACKEND_SECRET_KEY
+SUPABASE_STORAGE_BUCKET=tasknest-uploads
 ```
 
-The Go backend is now a **unified binary**:
-- It serves your React frontend at `http://YOUR_DOMAIN/`
-- It handles your API calls at `http://YOUR_DOMAIN/api/...`
-- It properly manages `SameSite` and `Secure` cookies because they are now on the same domain.
+Use the Session pooler URI (port 5432) for IPv4 backends or the direct URI when
+IPv6 is available. The Go database pool is capped at five connections per backend
+replica. The database role must be able to run migrations in `tasknest`.
+The backend sets its own private-schema search path on each connection.
 
-## 4. Database Setup
-Ensure that your production CockroachDB clusters have the necessary tables. The backend will automatically run migrations (creating tables) on startup, so just ensure the `DATABASE_URL` has write permissions.
+Set `FIREBASE_SERVICE_ACCOUNT_JSON` only if using existing Google sign-in, and
+`GROQ_API_KEY` for AI. Supabase Auth is not used, so its email settings do not
+control TaskNest login or signup.
 
-## 5. Security Checklist
-- [ ] Ensure `GIN_MODE=release` is set to prevent debug logs and enable HTTPS cookie security.
-- [ ] Use a strong `JWT_SECRET`.
-- [ ] Ensure your server is behind an SSL certificate (HTTPS). Cookies will NOT work in production mode without HTTPS.
+Build the server in `backend` with `go build -o tasknest .` and deploy that binary.
+Schema migrations are embedded. System environment values take precedence over
+`.env`. Use HTTPS; authentication cookies are Secure in release mode.
+
+## Storage
+
+On the first configured startup, the backend creates `tasknest-uploads` if missing
+using Supabase's Storage API, with public read URLs, a 10 MB file limit, and the
+app's allowed image/PDF types. Uploads require an authenticated TaskNest session.
+The backend sends its secret API key to Supabase; the browser never receives it.
+No anonymous upload policy is needed. It will not change an existing private
+bucket into a public bucket.
+
+Public file links can be read by anyone who has the URL. This preserves the app's
+current link behavior and is suitable for public assets. Confidential attachments
+need a private bucket and an additional authorized download flow. See
+[bucket access models](https://supabase.com/docs/guides/storage/buckets/fundamentals).
+
+All uploads use Supabase Storage.
+Storage setup failures stop startup instead of serving broken upload URLs.
+
+## Frontend
+
+In `frontend`, set `VITE_API_URL` to the HTTPS backend origin, then run:
+
+```sh
+npm ci
+npm run build
+```
+
+Host `frontend/dist` on a static host with SPA routing. If the frontend and API
+share an origin through a reverse proxy, leave `VITE_API_URL` blank and proxy
+`/api` and `/tasks` to Go. Proxy routes must allow the upload size plus multipart
+form overhead (at least 11 MB). Keep all Supabase/database secrets out of `VITE_*`.
+The backend's built-in `/` route returns JSON, so use separate static hosting or
+configure the reverse proxy to serve the frontend at `/`.
+
+## Verification
+
+- Backend tests and Storage HTTP tests exercise uploads, configuration, rejected
+  file types/sizes, redirect handling, and bucket initialization without live keys.
+- The rollback-only SQL smoke test has passed against the new Supabase database.
+  It covers both task types, milestones, foreign keys, cascading cleanup, shared
+  IDs, and denied anonymous schema access.
+- After adding credentials, run the backend, then test signup, login, profile
+  photos, task attachments, workspace tasks, and account deletion in the app.
+- Native Go-to-Supabase connectivity and migration checks passed after credentials
+  were configured. The public bucket was created, a temporary PDF uploaded and
+  downloaded with matching contents, and the test object was deleted.
+- Groq authentication and a live completion passed with `GROQ_MODEL=openai/gpt-oss-20b`.
+
+Email-based password recovery is not implemented. Decide on a recovery process
+before inviting users who need it. Review the project's free-plan usage limits
+and arrange backups appropriate to the data before production launch.

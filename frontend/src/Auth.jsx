@@ -20,6 +20,7 @@ export default function Auth({ onLoginSuccess, initialIsLogin = true }) {
   };
 
   useEffect(() => {
+    if (!auth) return;
     const handleRedirectResult = async () => {
       try {
         console.log('🔄 Checking Google Redirect Result...');
@@ -65,7 +66,7 @@ export default function Auth({ onLoginSuccess, initialIsLogin = true }) {
       }
     };
     handleRedirectResult();
-  }, [onLoginSuccess]);
+  }, [onLoginSuccess, navigate]);
 
   useEffect(() => {
     document.title = isLogin ? "Login | TaskNest" : "Sign Up | TaskNest";
@@ -73,6 +74,7 @@ export default function Auth({ onLoginSuccess, initialIsLogin = true }) {
 
   const handleGoogleSignIn = async () => {
     setError('');
+    if (!auth) { setError('Google sign-in is not configured. Use email and password.'); return; }
     setGoogleLoading(true);
     try {
       console.log('🚀 Starting Google Popup Auth...');
@@ -133,10 +135,6 @@ export default function Auth({ onLoginSuccess, initialIsLogin = true }) {
         });
         const data = await response.json();
         if (!response.ok) {
-          if (response.status === 403 && data?.error_code === 'EMAIL_NOT_VERIFIED') {
-            navigate(`/verify?email=${encodeURIComponent(formData.email)}`);
-            return;
-          }
           throw new Error(data.error || 'Something went wrong');
         }
         await onLoginSuccess();
@@ -156,15 +154,12 @@ export default function Auth({ onLoginSuccess, initialIsLogin = true }) {
         });
         const data = await response.json();
         if (!response.ok) {
-          if (response.status === 403 && data?.error_code === 'EMAIL_NOT_VERIFIED') {
-            navigate(`/verify?email=${encodeURIComponent(formData.email)}`);
-            return;
-          }
           throw new Error(data.error || 'Something went wrong');
         }
 
-        setInfo(data.message || 'Account created. Please verify your email.');
-        navigate(`/verify?email=${encodeURIComponent(formData.email)}`);
+        setInfo(data.message || 'Account created. You can now sign in.');
+        setIsLogin(true);
+        setFormData((previous) => ({ ...previous, password: '' }));
       }
     } catch (err) {
       setError(err.message);

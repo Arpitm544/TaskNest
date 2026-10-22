@@ -6,7 +6,7 @@ import { useWorkspace } from '../context/WorkspaceContext';
 const CATEGORIES = [
   { id: 'startup', label: 'Startup', icon: <Rocket size={20} />, desc: 'For early-stage companies and founders' },
   { id: 'hackathon', label: 'Hackathon', icon: <Target size={20} />, desc: 'Fast-paced project development' },
-  { id: 'college_project', label: 'College Project', icon: <Users size={20} />, desc: 'Academic group assignments' },
+  { id: 'college_project', label: 'College Project', icon: <Users size={20} />, desc: 'Academic group projects' },
   { id: 'organization', label: 'Organization', icon: <Building2 size={20} />, desc: 'Established clubs or companies' },
   { id: 'team', label: 'General Team', icon: <Briefcase size={20} />, desc: 'Any other collaborative group' },
 ];

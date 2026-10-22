@@ -29,8 +29,6 @@ export default function LandingPage() {
   const { theme, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [stats, setStats] = useState({ total_tasks: 0, completed_tasks: 0, active_tasks: 0, days_live: 30 });
-  const [statsLoading, setStatsLoading] = useState(true);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
   const [waitlistEmail, setWaitlistEmail] = useState('');
   const [waitlistLoading, setWaitlistLoading] = useState(false);
@@ -67,24 +65,6 @@ export default function LandingPage() {
   };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const API_BASE = import.meta.env.VITE_API_URL || '';
-        const res = await fetch(`${API_BASE}/api/public/stats`);
-        if (res.ok) {
-          const data = await res.json();
-          setStats(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch stats", err);
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-    fetchStats();
-  }, []);
-
-  useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
@@ -92,50 +72,6 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const AnimatedNumber = ({ value, duration = 1500, suffix = "" }) => {
-    const [count, setCount] = useState(0);
-    const [ref, setRef] = useState(null);
-    const [isVisible, setIsVisible] = useState(false);
-
-    useEffect(() => {
-      if (!ref) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) setIsVisible(true);
-        },
-        { threshold: 0.1 }
-      );
-      observer.observe(ref);
-      return () => observer.disconnect();
-    }, [ref]);
-
-    useEffect(() => {
-      if (!isVisible) return;
-      let start = 0;
-      const end = parseInt(value);
-      if (start === end) {
-        setCount(end);
-        return;
-      }
-
-      let timer = setInterval(() => {
-        start += Math.ceil(end / (duration / 16));
-        if (start >= end) {
-          setCount(end);
-          clearInterval(timer);
-        } else {
-          setCount(start);
-        }
-      }, 16);
-      return () => clearInterval(timer);
-    }, [isVisible, value, duration]);
-
-    return (
-      <span ref={setRef}>
-        {count.toLocaleString()}{suffix}
-      </span>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 selection:bg-zinc-200 dark:selection:bg-zinc-800 font-sans transition-colors duration-300">
@@ -234,95 +170,6 @@ export default function LandingPage() {
             )}
           </div>
 
-        </section>
-
-        <section className="px-6 max-w-6xl mx-auto mb-28">
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all group">
-              <div className="w-10 h-10 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-zinc-900 dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-zinc-950 transition-all">
-                <Zap size={20} fill="currentColor" />
-              </div>
-              <h3 className="font-bold text-zinc-900 dark:text-white mb-2">AI Roadmap</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                Automatically generate subject-specific milestones using Llama-3 AI for task clarity.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all group">
-              <div className="w-10 h-10 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-zinc-900 dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-zinc-950 transition-all">
-                <LayoutDashboard size={20} />
-              </div>
-              <h3 className="font-bold text-zinc-900 dark:text-white mb-2">Marketplace</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                Post and accept tasks in a secure, professional collaborative environment.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all group">
-              <div className="w-10 h-10 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-zinc-900 dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-zinc-950 transition-all">
-                <Grid size={20} />
-              </div>
-              <h3 className="font-bold text-zinc-900 dark:text-white mb-2">Team Workspaces</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                Create dedicated environments for your teams with member management and role-based permissions.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm hover:border-zinc-300 dark:hover:border-zinc-700 transition-all group">
-              <div className="w-10 h-10 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-lg flex items-center justify-center mb-4 group-hover:bg-zinc-900 dark:group-hover:bg-white group-hover:text-white dark:group-hover:text-zinc-950 transition-all">
-                <CheckCircle2 size={20} />
-              </div>
-              <h3 className="font-bold text-zinc-900 dark:text-white mb-2">Tracking</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                Never miss a deadline with automated status updates and visual milestone tracking.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="px-6 max-w-6xl mx-auto mb-28">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto border-y border-zinc-200 dark:border-zinc-800 py-12 transition-colors">
-            <div className="text-center">
-              <p className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white mb-1 tracking-tight">
-                {statsLoading ? (
-                  <span className="opacity-20">...</span>
-                ) : (
-                  <AnimatedNumber value={stats.total_tasks} suffix={stats.total_tasks >= 1000 ? "k+" : "+"} />
-                )}
-              </p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">Tasks Created</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white mb-1 tracking-tight">
-                {statsLoading ? (
-                  <span className="opacity-20">...</span>
-                ) : (
-                  <AnimatedNumber value={stats.completed_tasks} />
-                )}
-              </p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">Completed</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white mb-1 tracking-tight">
-                {statsLoading ? (
-                  <span className="opacity-20">...</span>
-                ) : (
-                  <AnimatedNumber value={stats.active_tasks} />
-                )}
-              </p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">In Progress</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white mb-1 tracking-tight">
-                {statsLoading ? (
-                  <span className="opacity-20">...</span>
-                ) : (
-                  <AnimatedNumber value={stats.days_live} suffix="+" />
-                )}
-              </p>
-              <p className="text-sm text-zinc-500 dark:text-zinc-500">Days Live</p>
-            </div>
-          </div>
         </section>
 
         <section id="features" className="max-w-6xl mx-auto px-6 mb-32">

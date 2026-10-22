@@ -130,7 +130,6 @@ export default function WorkspaceTasks({ tasks, onTaskCreated, onView, workspace
         issue_type: newTask.issue_type,
         labels: newTask.labels.split(',').map(s => s.trim()).filter(s => s !== ''),
         attachment_url: attachmentUrl,
-        assignee_email: '', // Removed per request
         milestone_id: newTask.milestone_id ? parseInt(newTask.milestone_id, 10) : null
       });
       
@@ -169,7 +168,7 @@ export default function WorkspaceTasks({ tasks, onTaskCreated, onView, workspace
 
       {showCreate && (
         <div className="bg-bg-card border border-border-subtle rounded-2xl p-6 shadow-premium mb-8 animate-fade-in">
-          <h3 className="text-xl font-semibold mb-8 text-text-primary">Post New Team Assignment</h3>
+          <h3 className="text-xl font-semibold mb-8 text-text-primary">Post a team task</h3>
           <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest">Title</label>

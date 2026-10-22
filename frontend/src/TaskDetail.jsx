@@ -153,7 +153,7 @@ const CTAStrip = memo(function CTAStrip({
         Status: <span className="text-text-primary">{status?.replace('_', ' ')}</span>
       </div>
       {slotsFilled >= capacity && !isAssignee && !isCreator && (
-        <div className="mt-2 text-[10px] text-red-400 font-bold text-center uppercase tracking-tighter">Assignment Full</div>
+        <div className="mt-2 text-[10px] text-red-400 font-bold text-center uppercase tracking-tighter">Task full</div>
       )}
     </div>
   );
@@ -871,7 +871,7 @@ export default function TaskDetail() {
               </h1>
               {task.labels && task.labels.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {task.labels.map((label, idx) => (
+                  {task.labels.filter(label => !/^global-starter-v\d+$/i.test(label)).map((label, idx) => (
                     <span key={idx} className={`px-2 py-0.5 border text-[10px] font-bold rounded uppercase tracking-widest ${getLabelColor(label)}`}>
                       {label}
                     </span>

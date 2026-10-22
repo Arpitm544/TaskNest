@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.authenticated) {
-        setUser({ userId: data.user_id, emailVerified: !!data.is_verified });
+        setUser({ userId: data.user_id });
       } else {
         setUser(null);
       }

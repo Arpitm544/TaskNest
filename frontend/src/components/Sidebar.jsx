@@ -11,7 +11,7 @@ import { useWorkspace } from '../context/WorkspaceContext.jsx';
 const globalNavItems = [
   { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, end: true },
   { to: '/dashboard/board', label: 'Kanban Board', icon: <Kanban size={18} /> },
-  { to: '/dashboard/market', label: 'Task Market', icon: <Briefcase size={18} /> },
+  { to: '/dashboard/market', label: 'Marketplace', icon: <Briefcase size={18} /> },
   { to: '/dashboard/my-tasks', label: 'My Tasks', icon: <CheckSquare size={18} /> },
   { to: '/dashboard/invitations', label: 'Task Requests', icon: <Users size={18} /> },
   { to: '/dashboard/posted-requests', label: 'Post Task', icon: <FileText size={18} /> },
@@ -34,22 +34,21 @@ const Sidebar = React.memo(({
   theme, 
   toggleTheme, 
   onLogout, 
-  setIsSettingsModalOpen,
-  tasks = [] 
+  setIsSettingsModalOpen
 }) => {
   const navigate = useNavigate();
   const { workspaces, currentWorkspace, selectWorkspace } = useWorkspace();
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
 
   return (
-    <aside className={`w-[280px] bg-bg-sidebar text-text-secondary flex flex-col shrink-0 z-50 py-8 h-screen border-r border-border-subtle transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0 fixed inset-y-0 left-0 shadow-2xl' : '-translate-x-full fixed inset-y-0 left-0 md:relative md:translate-x-0 md:left-auto'}`}>
+    <aside className={`w-[240px] bg-bg-sidebar text-text-secondary flex flex-col shrink-0 z-50 py-8 h-screen border-r border-border-subtle transition-transform duration-300 ease-out ${mobileMenuOpen ? 'translate-x-0 fixed inset-y-0 left-0 shadow-2xl' : '-translate-x-full fixed inset-y-0 left-0 md:relative md:translate-x-0 md:left-auto'}`}>
       <div className="px-6 mb-6 relative">
         <button 
           onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
           className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-text-primary/5 transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${currentWorkspace ? 'bg-indigo-500' : 'bg-accent'}`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-white ${currentWorkspace ? 'bg-indigo-500' : 'bg-accent'}`}>
               {currentWorkspace ? <Briefcase size={16} /> : <Globe size={16} />}
             </div>
             <div className="text-left flex-1 min-w-0">
@@ -57,11 +56,11 @@ const Sidebar = React.memo(({
                 {currentWorkspace ? currentWorkspace.name : 'Global Workspace'}
               </h1>
               <p className="text-[10px] text-text-secondary">
-                {currentWorkspace ? 'Team Workspace' : 'Personal'}
+                {currentWorkspace ? 'Team Workspace' : 'Community'}
               </p>
             </div>
           </div>
-          <ChevronDown size={14} className="text-text-secondary" />
+          <ChevronDown size={14} className="text-text-secondary shrink-0" />
         </button>
 
         {showWorkspaceMenu && (

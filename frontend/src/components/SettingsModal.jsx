@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import Avatar from './Avatar.jsx';
 import api from '../api/axios.js';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '../firebase.js';
 
 const SettingsModal = ({ 
   isOpen, 
@@ -23,15 +25,14 @@ const SettingsModal = ({
 
   const [securityData, setSecurityData] = useState({
     currentPassword: '',
-    newPassword: '',
-    otp: ''
+    newPassword: ''
   });
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState('');
   const [securitySuccess, setSecuritySuccess] = useState('');
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [securityAction, setSecurityAction] = useState(null); 
-  const [deleteOtp, setDeleteOtp] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const isGoogleAccount = userProfile?.provider === 'google';
 
   if (!isOpen) return null;
 
@@ -203,28 +204,9 @@ const SettingsModal = ({
     </div>
   );
 
-  const handleRequestPasswordOtp = async () => {
-    if (!securityData.currentPassword || !securityData.newPassword) {
-      setSecurityError('Please enter both current and new passwords');
-      return;
-    }
-    setSecurityLoading(true);
-    setSecurityError('');
-    try {
-      await api.post('/api/user/request-password-otp');
-      setIsOtpSent(true);
-      setSecurityAction('password');
-      setSecuritySuccess('Verification code sent to your email');
-    } catch (err) {
-      setSecurityError(err.response?.data?.error || 'Failed to send verification code');
-    } finally {
-      setSecurityLoading(false);
-    }
-  };
-
   const handleChangePassword = async () => {
-    if (!securityData.otp) {
-      setSecurityError('Please enter the 6-digit code');
+    if (!securityData.currentPassword || securityData.newPassword.length < 6) {
+      setSecurityError('Enter your current password and a new password of at least 6 characters');
       return;
     }
     setSecurityLoading(true);
@@ -232,13 +214,10 @@ const SettingsModal = ({
     try {
       await api.post('/api/user/change-password', {
         current_password: securityData.currentPassword,
-        new_password: securityData.newPassword,
-        otp: securityData.otp
+        new_password: securityData.newPassword
       });
       setSecuritySuccess('Password changed successfully!');
-      setSecurityData({ currentPassword: '', newPassword: '', otp: '' });
-      setIsOtpSent(false);
-      setSecurityAction(null);
+      setSecurityData({ currentPassword: '', newPassword: '' });
     } catch (err) {
       setSecurityError(err.response?.data?.error || 'Failed to change password');
     } finally {
@@ -246,33 +225,27 @@ const SettingsModal = ({
     }
   };
 
-  const handleRequestDeleteOtp = async () => {
-    setSecurityLoading(true);
-    setSecurityError('');
-    try {
-      await api.post('/api/user/request-delete-otp');
-      setIsOtpSent(true);
-      setSecurityAction('delete');
-      setSecuritySuccess('Account deletion code sent to your email');
-    } catch (err) {
-      setSecurityError(err.response?.data?.error || 'Failed to send deletion code');
-    } finally {
-      setSecurityLoading(false);
-    }
-  };
-
   const handleDeleteAccount = async () => {
-    if (!deleteOtp) {
-      setSecurityError('Please enter the deletion code');
+    if (!isGoogleAccount && !deletePassword) {
+      setSecurityError('Enter your current password to confirm deletion');
       return;
     }
     setSecurityLoading(true);
     setSecurityError('');
     try {
-      await api.post('/api/user/delete-account', { otp: deleteOtp });
+      let confirmation = { current_password: deletePassword };
+      if (isGoogleAccount) {
+        if (!auth) throw new Error('Google sign-in is not configured');
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        const result = await signInWithPopup(auth, provider);
+        confirmation = { google_token: await result.user.getIdToken(true) };
+      }
+      await api.post('/api/user/delete-account', confirmation);
+      setDeletePassword('');
       onLogout();
     } catch (err) {
-      setSecurityError(err.response?.data?.error || 'Failed to delete account');
+      setSecurityError(err.response?.data?.error || err.message || 'Failed to delete account');
     } finally {
       setSecurityLoading(false);
     }
@@ -297,7 +270,7 @@ const SettingsModal = ({
           <h4 className="text-sm font-medium text-text-primary">Change Password</h4>
         </div>
         
-        {!isOtpSent || securityAction !== 'password' ? (
+        {!isGoogleAccount ? (
           <div className="grid gap-3">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-text-secondary uppercase tracking-widest ml-1">Current Password</label>
@@ -320,40 +293,15 @@ const SettingsModal = ({
               />
             </div>
             <button 
-              onClick={handleRequestPasswordOtp}
+              onClick={handleChangePassword}
               disabled={securityLoading}
               className="w-full py-2.5 bg-text-primary text-bg-main text-sm font-semibold rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
             >
-              {securityLoading ? 'Sending Code...' : 'Request Verification Code'}
+              {securityLoading ? 'Updating...' : 'Change Password'}
             </button>
           </div>
         ) : (
-          <div className="p-4 bg-bg-main/50 rounded-xl border border-dashed border-accent/30 space-y-4">
-            <p className="text-xs text-text-secondary text-center">Enter the 6-digit code sent to your email to confirm password change.</p>
-            <input 
-              type="text" 
-              maxLength="6"
-              value={securityData.otp}
-              onChange={(e) => setSecurityData({...securityData, otp: e.target.value})}
-              placeholder="000000" 
-              className="w-full bg-bg-card border border-accent rounded-lg px-3 py-3 text-center text-lg font-bold tracking-[1em] outline-none" 
-            />
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setIsOtpSent(false)}
-                className="flex-1 py-2 text-text-secondary text-xs font-medium hover:text-text-primary transition-colors"
-              >
-                Back
-              </button>
-              <button 
-                onClick={handleChangePassword}
-                disabled={securityLoading}
-                className="flex-[2] py-2 bg-accent text-white text-xs font-bold rounded-lg hover:opacity-90 transition-all disabled:opacity-50"
-              >
-                {securityLoading ? 'Updating...' : 'Confirm Change'}
-              </button>
-            </div>
-          </div>
+          <p className="text-xs text-text-secondary">Manage your password through your Google account.</p>
         )}
       </div>
 
@@ -363,33 +311,38 @@ const SettingsModal = ({
           <h4 className="text-sm font-medium">Danger Zone</h4>
         </div>
         
-        {(!isOtpSent || securityAction !== 'delete') ? (
+        {!confirmDelete ? (
           <div className="p-4 rounded-xl border border-red-500/10 bg-red-500/5">
             <p className="text-xs text-text-secondary mb-4 leading-relaxed">
               Once you delete your account, there is no going back. All your tasks, contributions, and profile data will be permanently wiped.
             </p>
             <button 
-              onClick={handleRequestDeleteOtp}
+              onClick={() => { setConfirmDelete(true); setSecurityError(''); setSecuritySuccess(''); }}
               disabled={securityLoading}
               className="text-xs font-bold text-red-500 hover:text-red-600 flex items-center gap-1 transition-colors"
             >
-              {securityLoading ? 'Sending...' : 'Request deletion code'}
+              Delete Account
             </button>
           </div>
         ) : (
           <div className="p-4 bg-red-500/5 rounded-xl border border-dashed border-red-500/30 space-y-4">
             <p className="text-xs text-red-500 font-medium text-center">Confirm Deletion</p>
-            <input 
-              type="text" 
-              maxLength="6"
-              value={deleteOtp}
-              onChange={(e) => setDeleteOtp(e.target.value)}
-              placeholder="000000" 
-              className="w-full bg-bg-card border border-red-500/30 rounded-lg px-3 py-3 text-center text-lg font-bold tracking-[1em] outline-none text-red-500" 
-            />
+            {isGoogleAccount ? (
+              <p className="text-xs text-text-secondary">Confirm with the Google account used for this profile.</p>
+            ) : (
+              <input
+                type="password"
+                autoComplete="current-password"
+                aria-label="Current password to confirm account deletion"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Current password"
+                className="w-full bg-bg-card border border-red-500/30 rounded-lg px-3 py-3 text-sm outline-none"
+              />
+            )}
             <div className="flex gap-2">
               <button 
-                onClick={() => setIsOtpSent(false)}
+                onClick={() => { setConfirmDelete(false); setDeletePassword(''); }}
                 className="flex-1 py-2 text-text-secondary text-xs font-medium hover:text-text-primary transition-colors"
               >
                 Cancel

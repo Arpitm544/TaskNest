@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 type GroqMessage struct {
@@ -17,8 +18,9 @@ type GroqMessage struct {
 }
 
 type GroqRequest struct {
-	Model    string        `json:"model"`
-	Messages []GroqMessage `json:"messages"`
+	IncludeReasoning *bool         `json:"include_reasoning,omitempty"`
+	Model            string        `json:"model"`
+	Messages         []GroqMessage `json:"messages"`
 }
 
 type GroqResponse struct {
@@ -35,17 +37,25 @@ func CallGroq(prompt string) (string, error) {
 		log.Printf("[AI] CRITICAL ERROR: GROQ_API_KEY is not set in environment")
 		return "", fmt.Errorf("GROQ_API_KEY not set")
 	}
-	log.Printf("[AI] Calling Groq API with key (first 8 chars): %s...", apiKey[:8])
+	log.Printf("[AI] Calling Groq API")
 
+	model := strings.TrimSpace(os.Getenv("GROQ_MODEL"))
+	if model == "" {
+		model = "openai/gpt-oss-20b"
+	}
 	url := "https://api.groq.com/openai/v1/chat/completions"
 	reqBody := GroqRequest{
-		Model: "llama-3.3-70b-versatile",
+		Model: model,
 		Messages: []GroqMessage{
 			{Role: "system", Content: "You are a helpful assistant for TaskNest, a task management platform. Provide concise, structured JSON responses when asked."},
 			{Role: "user", Content: prompt},
 		},
 	}
 
+	if strings.HasPrefix(model, "openai/gpt-oss-") {
+		includeReasoning := false
+		reqBody.IncludeReasoning = &includeReasoning
+	}
 	jsonData, _ := json.Marshal(reqBody)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -55,7 +65,7 @@ func CallGroq(prompt string) (string, error) {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 45 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("[AI] Request failed: %v", err)
@@ -182,7 +192,7 @@ The "description" MUST be a single string (use \n for newlines), NOT a nested ob
 	}
 
 	cleanedResp := cleanJSONResponse(resp)
-	
+
 	var rawResult map[string]interface{}
 	if err := json.Unmarshal([]byte(cleanedResp), &rawResult); err != nil {
 		return nil, fmt.Errorf("failed to parse improved text: %v", err)
