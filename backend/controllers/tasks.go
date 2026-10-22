@@ -178,7 +178,7 @@ func ListTasks(c *gin.Context) {
 	          u_a.name as assignee_name, u_a.photo_url as assignee_photo_url, u_c.name as creator_name, u_c.photo_url as creator_photo_url, t.priority, t.ai_optimized, COALESCE(t.capacity, 1) as capacity,
 	          t.issue_type, t.labels
 	          FROM tasks t LEFT JOIN users u_a ON t.assignee_id = u_a.id LEFT JOIN users u_c ON t.creator_id = u_c.id
-	          WHERE t.creator_id <> $1
+	          WHERE (t.creator_id IS NULL OR t.creator_id <> $1)
 	            AND (SELECT COUNT(*) FROM task_assignees ta WHERE ta.task_id = t.id) < COALESCE(t.capacity, 1)
 	            AND NOT EXISTS (SELECT 1 FROM task_assignees ta2 WHERE ta2.task_id = t.id AND ta2.user_id = $2)
 	            AND NOT EXISTS (SELECT 1 FROM task_invitations ti WHERE ti.task_id = t.id AND ti.status = 'pending')`
