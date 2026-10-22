@@ -86,6 +86,7 @@ export default function Profile({ onLogout }) {
   }, [searchParams, setSearchParams]);
 
   const fetchTasks = useCallback(async (search = '') => {
+    setError('');
     let endpoint = '/tasks/dashboard';
     
     if (currentWorkspace) {
@@ -229,6 +230,7 @@ export default function Profile({ onLogout }) {
 
 
   const handleAccept = useCallback(async (id) => {
+    setError('');
     try {
       await api.post(`/tasks/${id}/accept`);
       navigate(`/dashboard/task/${id}`);
@@ -247,6 +249,7 @@ export default function Profile({ onLogout }) {
   }, [navigate, currentPath]);
 
   const handleStatusChange = useCallback(async (id, status, progress = null) => {
+    setError('');
     try {
       const body = { status };
       if (progress !== null) body.progress = parseInt(progress, 10);
@@ -259,6 +262,7 @@ export default function Profile({ onLogout }) {
   }, [fetchTasks]);
 
   const handleRespondInvitation = async (id, action) => {
+    setError('');
     try {
       await api.post(`/tasks/invitations/${id}/respond`, { action });
       fetchInvitations();
@@ -280,7 +284,9 @@ export default function Profile({ onLogout }) {
         title: newTask.title, 
         description: newTask.description 
       });
-      setNewTask(prev => ({ ...prev, priority: res.data.priority }));
+      const priority = ['Low', 'Medium', 'High', 'Critical'].find(value => value.toLowerCase() === String(res.data.priority || '').trim().toLowerCase());
+      if (!priority) throw new Error('Invalid AI priority');
+      setNewTask(prev => ({ ...prev, priority }));
     } catch (err) {
       console.error(err);
       alert('AI Priority prediction failed. Please try again.');
@@ -376,6 +382,7 @@ export default function Profile({ onLogout }) {
   };
 
   const handlePostTask = async (e) => {
+    setError('');
     e.preventDefault();
     if (!newTask.title || !newTask.subject) return;
     setPostLoading(true);
@@ -424,6 +431,7 @@ export default function Profile({ onLogout }) {
   }, []);
 
   const confirmDelete = async () => {
+    setError('');
     if (!taskToDelete) return;
     setPostLoading(true);
     try {
@@ -642,7 +650,7 @@ export default function Profile({ onLogout }) {
                   </div>
                 </div>
 
-                {showPostForm && <PostTaskForm task={newTask} setTask={setNewTask} onSubmit={handlePostTask} onCancel={() => setShowPostForm(false)} loading={postLoading} milestones={currentWorkspace ? workspaceMilestones : []} onEstimate={handleAiPredictPriority} onSuggestLabels={handleAiSuggestLabels} onImprove={handleAiImproveWriting} estimating={isPredictingPriority} suggesting={isSuggestingLabels} improving={isImprovingWriting} />}
+                {showPostForm && <PostTaskForm workspaceActive={Boolean(currentWorkspace)} task={newTask} setTask={setNewTask} onSubmit={handlePostTask} onCancel={() => setShowPostForm(false)} loading={postLoading} milestones={currentWorkspace ? workspaceMilestones : []} onEstimate={handleAiPredictPriority} onSuggestLabels={handleAiSuggestLabels} onImprove={handleAiImproveWriting} estimating={isPredictingPriority} suggesting={isSuggestingLabels} improving={isImprovingWriting} />}
 
                 {!showPostForm && (
                 <div className="premium-card">

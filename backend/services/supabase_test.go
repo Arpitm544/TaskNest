@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -181,5 +183,67 @@ func TestInitializeStorageDoesNotCreateBucketOnOtherBadRequests(t *testing.T) {
 				t.Fatal("unrelated API errors must not trigger bucket creation")
 			}
 		})
+	}
+}
+
+func TestInitializeStorageRechecksConcurrentBucketCreation(t *testing.T) {
+	for _, public := range []bool{true, false} {
+		for _, status := range []int{409, 400} {
+			t.Run(fmt.Sprintf("%d/public=%t", status, public), func(t *testing.T) {
+				calls := 0
+				mockStorage(t, func(r *http.Request) (*http.Response, error) {
+					calls++
+					switch calls {
+					case 1:
+						return storageResponse(404, `{}`), nil
+					case 2:
+						return storageResponse(status, `{"code":"Duplicate","statusCode":"409"}`), nil
+					case 3:
+						if r.Method != "GET" {
+							t.Fatal("must recheck after conflict")
+						}
+						return storageResponse(200, fmt.Sprintf(`{"public":%t}`, public)), nil
+					default:
+						t.Fatal("unexpected request")
+						return nil, nil
+					}
+				})
+				err := InitializeStorage(context.Background())
+				if (err == nil) != public || calls != 3 {
+					t.Fatalf("public=%t calls=%d err=%v", public, calls, err)
+				}
+			})
+		}
+	}
+}
+
+func TestAVIFRequiresBoundedFileTypeBox(t *testing.T) {
+	calls := 0
+	mockStorage(t, func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Header.Get("Content-Type") != "image/avif" {
+			t.Fatal("missing AVIF content type")
+		}
+		return storageResponse(200, `{}`), nil
+	})
+	for _, data := range []string{"textftypavifxxxx", "\x00\x00\x00\x00ftypavifxxxx", "\x00\x00\x00\x0cftypavifxxxx", "\x00\x00\x01\x00ftypavifxxxx"} {
+		if _, err := uploadFixture(t, data, "spoof.avif"); err != ErrUploadType {
+			t.Fatalf("accepted invalid box: %v", err)
+		}
+	}
+	if _, err := uploadFixture(t, "\x00\x00\x00\x10ftypavif\x00\x00\x00\x00", "valid.avif"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatal("invalid content reached storage")
+	}
+}
+
+func TestStorageTransportPreservesCause(t *testing.T) {
+	cause := errors.New("transport unavailable")
+	mockStorage(t, func(*http.Request) (*http.Response, error) { return nil, cause })
+	_, err := storageRequest(context.Background(), storageConfig{origin: "https://example.invalid"}, "GET", "bucket", "application/json", nil)
+	if !errors.Is(err, cause) {
+		t.Fatalf("lost underlying error: %v", err)
 	}
 }

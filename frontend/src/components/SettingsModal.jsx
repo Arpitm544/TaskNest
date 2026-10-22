@@ -205,6 +205,7 @@ const SettingsModal = ({
   );
 
   const handleChangePassword = async () => {
+    setSecuritySuccess('');
     if (!securityData.currentPassword || securityData.newPassword.length < 6) {
       setSecurityError('Enter your current password and a new password of at least 6 characters');
       return;
@@ -343,6 +344,7 @@ const SettingsModal = ({
             <div className="flex gap-2">
               <button 
                 onClick={() => { setConfirmDelete(false); setDeletePassword(''); }}
+                disabled={securityLoading}
                 className="flex-1 py-2 text-text-secondary text-xs font-medium hover:text-text-primary transition-colors"
               >
                 Cancel

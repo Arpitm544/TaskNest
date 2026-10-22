@@ -6,13 +6,10 @@ services are not required.
 
 ## Supabase project
 
-[TaskNest dashboard](https://supabase.com/dashboard/project/dpvluojenuonxuasbvyk)
-— Mumbai (`ap-south-1`), created under the user's free organization.
-The initial app schema is already applied. There was no old TaskNest data to move.
-
-The remaining configuration is local: fill `DATABASE_URL` and
-`SUPABASE_SECRET_KEY` in `backend/.env` or the deployment host's secret settings.
-The connector cannot retrieve those private credentials. Reference:
+Create your own Supabase project and configure `SUPABASE_URL`, `DATABASE_URL`,
+`SUPABASE_SECRET_KEY`, and a unique long random `JWT_SECRET` in `backend/.env`
+or the deployment host's secret settings. Startup applies the embedded schema.
+Reference:
 [Supabase database connections](https://supabase.com/docs/guides/database/connecting-to-postgres)
 and [API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 
@@ -24,7 +21,7 @@ PORT=8080
 PRODUCTION_DOMAIN=https://YOUR_FRONTEND_DOMAIN
 JWT_SECRET=YOUR_LONG_RANDOM_SECRET
 DATABASE_URL=YOUR_SUPABASE_POSTGRES_URI_WITH_SSLMODE_REQUIRE
-SUPABASE_URL=https://dpvluojenuonxuasbvyk.supabase.co
+SUPABASE_URL=https://PROJECT_REF.supabase.co
 SUPABASE_SECRET_KEY=sb_secret_YOUR_BACKEND_SECRET_KEY
 SUPABASE_STORAGE_BUCKET=tasknest-uploads
 ```
@@ -34,7 +31,7 @@ IPv6 is available. The Go database pool is capped at five connections per backen
 replica. The database role must be able to run migrations in `tasknest`.
 The backend sets its own private-schema search path on each connection.
 
-Set `FIREBASE_SERVICE_ACCOUNT_JSON` only if using existing Google sign-in, and
+Set `FIREBASE_SERVICE_ACCOUNT_JSON` to the service account file path only if using existing Google sign-in, and
 `GROQ_API_KEY` for AI. Supabase Auth is not used, so its email settings do not
 control TaskNest login or signup.
 
@@ -139,16 +136,18 @@ re-enable the workflow there if needed. See
 
 - Backend tests and Storage HTTP tests exercise uploads, configuration, rejected
   file types/sizes, redirect handling, and bucket initialization without live keys.
-- The rollback-only SQL smoke test has passed against the new Supabase database.
-  It covers both task types, milestones, foreign keys, cascading cleanup, shared
-  IDs, and denied anonymous schema access.
+- Run the rollback-only SQL smoke test against an isolated database with
+  `psql --dbname="$TEST_DATABASE_URL" -f backend/config/testdata/supabase_smoke.sql`.
 - After adding credentials, run the backend, then test signup, login, profile
   photos, task attachments, workspace tasks, and account deletion in the app.
-- Native Go-to-Supabase connectivity and migration checks passed after credentials
-  were configured. The public bucket was created, a temporary PDF uploaded and
-  downloaded with matching contents, and the test object was deleted.
-- Groq authentication and a live completion passed with `GROQ_MODEL=openai/gpt-oss-20b`.
 
 Email-based password recovery is not implemented. Decide on a recovery process
 before inviting users who need it. Review the project's free-plan usage limits
 and arrange backups appropriate to the data before production launch.
+
+Password signup does not verify email ownership. An existing password account
+blocks Google sign-in for the same address; safe recovery or linking requires a
+separate verified-ownership flow. Do not enable automatic email-based linking.
+
+Bucket MIME restrictions are configured at creation. When the supported upload
+types change, update existing buckets in Supabase Storage settings as well.

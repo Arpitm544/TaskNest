@@ -11,7 +11,7 @@ func FindUserByEmail(email string) (*models.User, error) {
 	var user models.User
 	var password sql.NullString
 
-	query := "SELECT id, name, email, password, provider, COALESCE(is_verified, FALSE) FROM users WHERE email = $1"
+	query := "SELECT id, name, email, password, provider, COALESCE(is_verified, FALSE) FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))"
 	err := config.DB.QueryRow(query, email).Scan(&user.ID, &user.Name, &user.Email, &password, &user.Provider, &user.IsVerified)
 
 	if err != nil {
@@ -30,7 +30,7 @@ func CheckUserExists(email string) (int64, bool, string, error) {
 	var id int64
 	var isVerified bool
 	var provider string
-	err := config.DB.QueryRow("SELECT id, is_verified, provider FROM users WHERE email = $1", email).Scan(&id, &isVerified, &provider)
+	err := config.DB.QueryRow("SELECT id, is_verified, provider FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))", email).Scan(&id, &isVerified, &provider)
 	return id, isVerified, provider, err
 }
 

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -37,7 +38,7 @@ func UploadFile(file multipart.File, _ string) (string, error) {
 	}
 	contentType := http.DetectContentType(data)
 	// AVIF's ISO-BMFF signature is not recognized by Go's MIME detector.
-	if len(data) >= 12 && string(data[4:8]) == "ftyp" && (string(data[8:12]) == "avif" || string(data[8:12]) == "avis") {
+	if len(data) >= 16 && binary.BigEndian.Uint32(data[:4]) >= 16 && uint64(binary.BigEndian.Uint32(data[:4])) <= uint64(len(data)) && string(data[4:8]) == "ftyp" && (string(data[8:12]) == "avif" || string(data[8:12]) == "avis") {
 		contentType = "image/avif"
 	}
 	extension, ok := allowedUploadTypes[contentType]

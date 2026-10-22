@@ -159,6 +159,7 @@ export default function Auth({ onLoginSuccess, initialIsLogin = true }) {
 
         setInfo(data.message || 'Account created. You can now sign in.');
         setIsLogin(true);
+        navigate('/login', { replace: true });
         setFormData((previous) => ({ ...previous, password: '' }));
       }
     } catch (err) {

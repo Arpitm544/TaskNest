@@ -41,6 +41,6 @@ jobs:
           fi
 
           # Read an application table without printing records or changing data.
-          psql -X --no-password --set=ON_ERROR_STOP=1 --quiet --tuples-only \
+          psql -X --no-password --set=ON_ERROR_STOP=1 --quiet --tuples-only --dbname="$PGDATABASE" \
             --command='SELECT EXISTS (SELECT 1 FROM tasknest.tasks LIMIT 1);' >/dev/null
           echo 'Database read succeeded.'

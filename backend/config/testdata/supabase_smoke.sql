@@ -1,3 +1,4 @@
+\set ON_ERROR_STOP on
 -- Run against an initialized TaskNest PostgreSQL database. All test rows roll back.
 BEGIN;
 SET LOCAL search_path = tasknest;

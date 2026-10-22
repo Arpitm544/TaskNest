@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -56,7 +57,7 @@ func storageRequest(ctx context.Context, c storageConfig, method, path, contentT
 	// New Supabase secret keys belong in apikey, never in Authorization: Bearer.
 	response, err := storageHTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("unable to reach Supabase Storage")
+		return nil, fmt.Errorf("unable to reach Supabase Storage: %w", err)
 	}
 	return response, nil
 }
@@ -107,7 +108,11 @@ func InitializeStorage(ctx context.Context) error {
 	}
 	if missingBucket {
 		response.Body.Close()
-		types := []string{"image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "application/pdf"}
+		types := make([]string, 0, len(allowedUploadTypes))
+		for contentType := range allowedUploadTypes {
+			types = append(types, contentType)
+		}
+		sort.Strings(types)
 		data, _ := json.Marshal(map[string]interface{}{"id": c.bucket, "name": c.bucket, "public": true, "file_size_limit": MaxUploadSize, "allowed_mime_types": types})
 		response, err = storageRequest(ctx, c, http.MethodPost, "bucket", "application/json", bytes.NewReader(data))
 		if err != nil {
@@ -117,7 +122,21 @@ func InitializeStorage(ctx context.Context) error {
 		if response.StatusCode >= 200 && response.StatusCode < 300 {
 			return nil
 		}
-		return fmt.Errorf("create Supabase bucket failed (HTTP %d)", response.StatusCode)
+		// A concurrent replica may have created the bucket. Re-read after a
+		// conflict (including Supabase's HTTP 400 wrapper) and validate visibility.
+		var detail struct {
+			Code       string `json:"code"`
+			StatusCode string `json:"statusCode"`
+		}
+		json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&detail)
+		if response.StatusCode != http.StatusConflict && !(response.StatusCode == http.StatusBadRequest && (detail.Code == "Duplicate" || detail.Code == "ResourceAlreadyExists" || detail.StatusCode == "409")) {
+			return fmt.Errorf("create Supabase bucket failed (HTTP %d)", response.StatusCode)
+		}
+		response.Body.Close()
+		response, err = storageRequest(ctx, c, http.MethodGet, "bucket/"+url.PathEscape(c.bucket), "application/json", nil)
+		if err != nil {
+			return err
+		}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {

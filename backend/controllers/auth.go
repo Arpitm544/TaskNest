@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"os"
 	"strconv"
@@ -31,7 +32,7 @@ func Signup(c *gin.Context) {
 	}
 
 	input.Name = strings.TrimSpace(input.Name)
-	input.Email = strings.TrimSpace(input.Email)
+	input.Email = strings.ToLower(strings.TrimSpace(input.Email))
 	if input.Name == "" || input.Email == "" || len(input.Password) < 6 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input, ensure all fields are provided and password is at least 6 characters"})
 		return
@@ -68,7 +69,7 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	user, err := services.FindUserByEmail(strings.TrimSpace(input.Email))
+	user, err := services.FindUserByEmail(strings.ToLower(strings.TrimSpace(input.Email)))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
@@ -105,6 +106,7 @@ func GoogleAuth(c *gin.Context) {
 
 	uid := decoded.UID
 	email, _ := decoded.Claims["email"].(string)
+	email = strings.ToLower(strings.TrimSpace(email))
 	name, _ := decoded.Claims["name"].(string)
 	picture, _ := decoded.Claims["picture"].(string)
 
@@ -192,17 +194,31 @@ func UpdateProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Name cannot be empty"})
 		return
 	}
-	query := "UPDATE users SET name = $1, field = $2, college_name = $3, year = $4 WHERE id = $5"
-	config.DB.Exec(query, name, services.NullableString(c.Request.FormValue("field")), services.NullableString(c.Request.FormValue("college_name")), services.NullableString(c.Request.FormValue("year")), userID)
-
+	var photoURL *string
 	if file, header, err := c.Request.FormFile("photo"); err == nil {
 		defer file.Close()
-		photoURL, err := services.UploadFile(file, header.Filename)
+		uploaded, err := services.UploadFile(file, header.Filename)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			status, message := http.StatusInternalServerError, "Failed to upload photo"
+			if errors.Is(err, services.ErrUploadTooLarge) || errors.Is(err, services.ErrUploadType) {
+				status, message = http.StatusBadRequest, err.Error()
+			}
+			c.JSON(status, gin.H{"error": message})
 			return
 		}
-		config.DB.Exec("UPDATE users SET photo_url = $1 WHERE id = $2", photoURL, userID)
+		photoURL = &uploaded
+	} else if !errors.Is(err, http.ErrMissingFile) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read photo"})
+		return
+	}
+	// Save all profile fields together, only after the upload succeeds.
+	_, err := config.DB.Exec(`UPDATE users SET name = $1, field = $2, college_name = $3, year = $4,
+  photo_url = COALESCE($5, photo_url) WHERE id = $6`, name,
+		services.NullableString(c.Request.FormValue("field")), services.NullableString(c.Request.FormValue("college_name")),
+		services.NullableString(c.Request.FormValue("year")), photoURL, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
@@ -299,7 +315,7 @@ func DeleteAccount(c *gin.Context) {
 	defer tx.Rollback()
 	for _, statement := range []string{
 		"DELETE FROM task_assignees WHERE user_id = $1",
-		"DELETE FROM task_invitations WHERE invitee_email IN (SELECT email FROM users WHERE id = $1)",
+		"DELETE FROM task_invitations WHERE LOWER(TRIM(invitee_email)) IN (SELECT LOWER(TRIM(email)) FROM users WHERE id = $1)",
 		"DELETE FROM tasks WHERE creator_id = $1",
 		"UPDATE activities SET user_id = NULL WHERE user_id = $1",
 		"DELETE FROM users WHERE id = $1",

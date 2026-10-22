@@ -1,9 +1,10 @@
 import { Clock, Users } from 'lucide-react';
+import { memo } from 'react';
 import Avatar from './Avatar.jsx';
 
 function objectivePreview(description = '') {
   const objective = description.match(/(?:^|\n)Objective\s*\n([\s\S]*?)(?:\n\s*\n|$)/i);
-  return (objective?.[1] || description.replace(/^Sample collaboration task[^\n]*\n*/i, '')).replace(/\s+/g, ' ').trim() || 'Open this task to see the requirements and deliverables.';
+  return (objective?.[1] || description).replace(/\s+/g, ' ').trim() || 'Open this task to see the requirements and deliverables.';
 }
 
 const priorityStyle = {
@@ -13,9 +14,9 @@ const priorityStyle = {
   Low: 'bg-slate-100 text-slate-600 dark:bg-slate-500/10 dark:text-slate-300',
 };
 
-export default function TaskMarketCard({ task, onAccept, onView, formatDate }) {
+function TaskMarketCard({ task, onAccept, onView, formatDate }) {
   const available = Math.max(0, (task.capacity || 1) - (task.slots_filled || 0));
-  const labels = (task.labels || []).filter(label => !/^(sample|global-starter-v\d+|seed[:_-].*)$/i.test(label) && label.toLowerCase().replaceAll('-', ' ') !== task.subject?.toLowerCase()).slice(0, 2);
+  const labels = (task.labels || []).filter(label => label.toLowerCase().replaceAll('-', ' ') !== task.subject?.toLowerCase()).slice(0, 2);
   return (
     <article className="market-task-card flex flex-col rounded-xl border border-border-subtle bg-bg-card p-5 transition-shadow hover:shadow-md min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4"><span className="text-xs font-medium text-text-secondary">{task.subject || 'General'}</span>{task.priority && <span className={`px-2 py-1 rounded-md text-xs font-medium ${priorityStyle[task.priority] || priorityStyle.Medium}`}>{task.priority}</span>}</div>
@@ -28,3 +29,5 @@ export default function TaskMarketCard({ task, onAccept, onView, formatDate }) {
     </article>
   );
 }
+
+export default memo(TaskMarketCard);

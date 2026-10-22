@@ -505,7 +505,7 @@ func ListInvitations(c *gin.Context) {
 		FROM task_invitations i
 		INNER JOIN tasks t ON i.task_id = t.id
 		LEFT JOIN users u ON t.creator_id = u.id
-		WHERE i.invitee_email ILIKE $1 AND i.status = 'pending'
+		WHERE LOWER(TRIM(i.invitee_email)) = LOWER(TRIM($1)) AND i.status = 'pending'
 		ORDER BY i.created_at DESC`
 	rows, err := config.DB.Query(query, cleanEmail)
 

@@ -19,7 +19,7 @@ import (
 func generateInviteCode() string {
 	bytes := make([]byte, 8)
 	if _, err := rand.Read(bytes); err != nil {
-		return "INVITE" 
+		return "INVITE"
 	}
 	return hex.EncodeToString(bytes)
 }
@@ -207,7 +207,7 @@ func InviteWorkspaceMember(c *gin.Context) {
 
 	var input struct {
 		Email string `json:"email"`
-		Role  string `json:"role"` 
+		Role  string `json:"role"`
 	}
 	if err := c.BindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
@@ -223,7 +223,7 @@ func InviteWorkspaceMember(c *gin.Context) {
 	}
 
 	var targetUserID int64
-	err = config.DB.QueryRow(`SELECT id FROM users WHERE email = $1`, input.Email).Scan(&targetUserID)
+	err = config.DB.QueryRow(`SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))`, input.Email).Scan(&targetUserID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User with this email not found"})
 		return
@@ -294,7 +294,6 @@ func ListWorkspaceMembers(c *gin.Context) {
 	c.JSON(http.StatusOK, members)
 }
 
-
 func CreateWorkspaceTask(c *gin.Context) {
 	workspaceIDStr := c.Param("id")
 	workspaceID, err := strconv.ParseInt(workspaceIDStr, 10, 64)
@@ -319,7 +318,7 @@ func CreateWorkspaceTask(c *gin.Context) {
 		Priority      string   `json:"priority"`
 		AssigneeEmail string   `json:"assignee_email"`
 		MilestoneID   *int64   `json:"milestone_id"`
-		DueDate       *string  `json:"deadline"` 
+		DueDate       *string  `json:"deadline"`
 		IssueType     string   `json:"issue_type"`
 		Labels        []string `json:"labels"`
 		AttachmentURL string   `json:"attachment_url"`
@@ -337,7 +336,7 @@ func CreateWorkspaceTask(c *gin.Context) {
 	var assigneeID *int64
 	if input.AssigneeEmail != "" {
 		var aID int64
-		err = config.DB.QueryRow(`SELECT id FROM users WHERE email = $1`, input.AssigneeEmail).Scan(&aID)
+		err = config.DB.QueryRow(`SELECT id FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM($1))`, input.AssigneeEmail).Scan(&aID)
 		if err == nil {
 			var isMember bool
 			config.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2)`, workspaceID, aID).Scan(&isMember)
@@ -389,12 +388,12 @@ func ListWorkspaceTasks(c *gin.Context) {
 
 	query := `
 		SELECT t.id, t.workspace_id, t.title, t.description, t.status, t.priority, t.creator_id, t.assignee_id, t.milestone_id, t.due_date, t.created_at, t.updated_at,
-		       c.name as creator_name, COALESCE(c.photo_url, '') as creator_photo_url,
+		       COALESCE(c.name, 'Former member') as creator_name, COALESCE(c.photo_url, '') as creator_photo_url,
 		       a.name as assignee_name, COALESCE(a.email, '') as assignee_email, COALESCE(a.photo_url, '') as assignee_photo_url,
 		       COALESCE(m.title, '') as milestone_title,
 		       COALESCE(t.subject, ''), COALESCE(t.attachment_url, ''), COALESCE(t.issue_type, 'Task'), t.labels
 		FROM workspace_tasks t
-		JOIN users c ON t.creator_id = c.id
+		LEFT JOIN users c ON t.creator_id = c.id
 		LEFT JOIN users a ON t.assignee_id = a.id
 		LEFT JOIN workspace_milestones m ON t.milestone_id = m.id
 		WHERE t.workspace_id = $1

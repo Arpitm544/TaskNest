@@ -5,7 +5,7 @@ function Field({ id, label, hint, children }) {
   return <div className="space-y-2"><label htmlFor={id} className="block text-sm font-medium text-text-primary">{label}</label>{children}{hint && <p className="text-xs leading-5 text-text-secondary">{hint}</p>}</div>;
 }
 
-export default function PostTaskForm({ task, setTask, onSubmit, onCancel, loading, milestones = [], onEstimate, onSuggestLabels, onImprove, estimating, suggesting, improving }) {
+export default function PostTaskForm({ task, setTask, onSubmit, onCancel, loading, milestones = [], workspaceActive = false, onEstimate, onSuggestLabels, onImprove, estimating, suggesting, improving }) {
   const [fileError, setFileError] = useState('');
   const update = (field, value) => setTask(previous => ({ ...previous, [field]: value }));
   const aiReady = Boolean(task.title.trim() && task.description.trim());
@@ -21,7 +21,7 @@ export default function PostTaskForm({ task, setTask, onSubmit, onCancel, loadin
       <section aria-labelledby="task-planning" className="border-t border-border-subtle pt-6"><h3 id="task-planning" className="text-sm font-semibold mb-4">Plan the work</h3><div className="grid gap-5 sm:grid-cols-3">
         <Field id="task-deadline" label="Deadline" hint="Optional. Leave blank for a flexible deadline."><input id="task-deadline" type="date" min={today} value={task.deadline} onChange={event => update('deadline', event.target.value)} className="task-input" /></Field>
         <div className="space-y-2"><div className="flex items-center justify-between gap-2"><label htmlFor="task-priority" className="text-sm font-medium">Priority</label>{aiButton('Suggest', onEstimate, estimating)}</div><select id="task-priority" value={task.priority} onChange={event => update('priority', event.target.value)} className="task-input">{['Low', 'Medium', 'High', 'Critical'].map(value => <option key={value}>{value}</option>)}</select></div>
-        <Field id="task-spots" label="Available spots" hint="How many people can join this task."><input id="task-spots" type="number" required min={1} max={20} value={task.max_assignees ?? 1} onChange={event => update('max_assignees', event.target.value)} className="task-input" /></Field>
+        {!workspaceActive && <Field id="task-spots" label="Available spots" hint="How many people can join this task."><input id="task-spots" type="number" required min={1} max={20} value={task.max_assignees ?? 1} onChange={event => update('max_assignees', event.target.value)} className="task-input" /></Field>}
       </div></section>
       <details className="rounded-xl border border-border-subtle bg-bg-main/50 group"><summary className="cursor-pointer list-none flex items-center justify-between gap-3 p-4 text-sm font-medium">More options <span className="ml-auto text-xs text-text-secondary font-normal">Task type, labels, and files</span><ChevronDown size={16} className="group-open:rotate-180 transition-transform" /></summary><div className="p-4 pt-1 grid gap-5 sm:grid-cols-2">
         <Field id="task-type" label="Task type"><select id="task-type" value={task.issue_type} onChange={event => update('issue_type', event.target.value)} className="task-input">{['Task', 'Bug', 'Story', 'Improvement'].map(value => <option key={value}>{value}</option>)}</select></Field>

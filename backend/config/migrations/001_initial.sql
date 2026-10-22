@@ -209,14 +209,14 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-CREATE TRIGGER resolve_milestone_task BEFORE INSERT OR UPDATE OF task_id, marketplace_task_id, workspace_task_id
+CREATE OR REPLACE TRIGGER resolve_milestone_task BEFORE INSERT OR UPDATE OF task_id, marketplace_task_id, workspace_task_id
 ON tasknest.milestones FOR EACH ROW EXECUTE FUNCTION tasknest.resolve_milestone_task();
 
-CREATE INDEX tasks_creator_idx ON tasknest.tasks (creator_id);
-CREATE INDEX tasks_assignee_idx ON tasknest.tasks (assignee_id);
-CREATE INDEX milestones_task_idx ON tasknest.milestones (task_id, position);
-CREATE INDEX task_invitations_email_idx ON tasknest.task_invitations (invitee_email);
-CREATE INDEX workspace_members_user_idx ON tasknest.workspace_members (user_id);
-CREATE INDEX workspace_tasks_workspace_idx ON tasknest.workspace_tasks (workspace_id);
-CREATE INDEX workspace_activities_workspace_idx ON tasknest.workspace_activities (workspace_id, created_at);
+CREATE INDEX IF NOT EXISTS tasks_creator_idx ON tasknest.tasks (creator_id);
+CREATE INDEX IF NOT EXISTS tasks_assignee_idx ON tasknest.tasks (assignee_id);
+CREATE INDEX IF NOT EXISTS milestones_task_idx ON tasknest.milestones (task_id, position);
+CREATE INDEX IF NOT EXISTS task_invitations_email_idx ON tasknest.task_invitations (invitee_email);
+CREATE INDEX IF NOT EXISTS workspace_members_user_idx ON tasknest.workspace_members (user_id);
+CREATE INDEX IF NOT EXISTS workspace_tasks_workspace_idx ON tasknest.workspace_tasks (workspace_id);
+CREATE INDEX IF NOT EXISTS workspace_activities_workspace_idx ON tasknest.workspace_activities (workspace_id, created_at);
 

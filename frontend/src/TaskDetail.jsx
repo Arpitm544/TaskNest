@@ -783,7 +783,7 @@ export default function TaskDetail() {
 
   if (loading) return (
     <div className="flex bg-bg-main h-screen overflow-hidden">
-      <div className="w-[280px] shrink-0 bg-bg-sidebar border-r border-border-subtle hidden md:block animate-pulse" />
+      <div className="w-[240px] shrink-0 bg-bg-sidebar border-r border-border-subtle hidden md:block animate-pulse" />
       <div className="flex-1 overflow-y-auto">
         <div className="h-16 border-b border-border-subtle animate-pulse bg-bg-main/70" />
         <TaskDetailSkeleton />
@@ -871,7 +871,7 @@ export default function TaskDetail() {
               </h1>
               {task.labels && task.labels.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  {task.labels.filter(label => !/^global-starter-v\d+$/i.test(label)).map((label, idx) => (
+                  {task.labels.map((label, idx) => (
                     <span key={idx} className={`px-2 py-0.5 border text-[10px] font-bold rounded uppercase tracking-widest ${getLabelColor(label)}`}>
                       {label}
                     </span>

@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 
 const stages = [
-  { title: 'To do', statuses: ['pending', 'todo'], dot: 'bg-slate-400' },
-  { title: 'In progress', statuses: ['accepted', 'in_progress', 'in progress'], dot: 'bg-blue-500' },
+  { title: 'To do', statuses: ['pending', 'todo', 'to do'], dot: 'bg-slate-400' },
+  { title: 'In progress', statuses: ['accepted', 'in_progress', 'in progress', 'in-progress'], dot: 'bg-blue-500' },
   { title: 'In review', statuses: ['submitted', 'in_review', 'in review'], dot: 'bg-amber-500' },
   { title: 'Completed', statuses: ['completed', 'done'], dot: 'bg-emerald-500' },
 ];

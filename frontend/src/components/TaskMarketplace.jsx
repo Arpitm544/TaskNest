@@ -20,7 +20,7 @@ export default function TaskMarketplace({ tasks, loading, onAccept, onView, form
   const currentPage = Math.min(page, pages);
   const start = (currentPage - 1) * 12;
   const reset = () => { setCategory('all'); setPriority('all'); setQuery(''); setPage(1); };
-  const filtering = category !== 'all' || priority !== 'all' || query !== '';
+  const filtering = category !== 'all' || priority !== 'all' || query.trim() !== '';
   const selectClass = 'bg-bg-card border border-border-subtle rounded-lg px-3 py-2.5 text-sm text-text-primary min-w-0';
   return (
     <div className="space-y-6 animate-fade-up">

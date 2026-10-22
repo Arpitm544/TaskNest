@@ -16,18 +16,15 @@ For AI, configure `GROQ_API_KEY` and optionally `GROQ_MODEL` (default
 
 ## Configure Supabase
 
-The project created for this workspace is **TaskNest**, in Mumbai:
-[Open Supabase](https://supabase.com/dashboard/project/dpvluojenuonxuasbvyk).
-Its initial PostgreSQL schema has already been applied; there was no existing
-TaskNest data to import.
-
-Copy `backend/.env.example` to `backend/.env` if `.env` does not already exist.
-For this workspace, an ignored `.env` has already been created with the project
-URL and a random JWT secret. Fill these two values locally:
+Create a Supabase project. Copy `backend/.env.example` to `backend/.env` and
+fill in your project's settings. Replace `JWT_SECRET` with a unique long random
+secret (for example, generate one with `openssl rand -hex 32`).
 
 ```env
 DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_DATABASE_PASSWORD@YOUR_SESSION_POOLER_HOST:5432/postgres?sslmode=require
 SUPABASE_SECRET_KEY=sb_secret_YOUR_BACKEND_SECRET_KEY
+SUPABASE_URL=https://PROJECT_REF.supabase.co
+JWT_SECRET=YOUR_UNIQUE_LONG_RANDOM_SECRET
 ```
 
 1. In the project's **Connect** dialog, copy the PostgreSQL URI. For an IPv4
@@ -36,10 +33,10 @@ SUPABASE_SECRET_KEY=sb_secret_YOUR_BACKEND_SECRET_KEY
    and URI-encode special characters in it. Use the hostname shown by Supabase.
 2. Under **Settings → API Keys**, copy a **secret** key (`sb_secret_...`). Keep
    it in the backend environment. A publishable key is not sufficient.
-3. Keep `SUPABASE_URL=https://dpvluojenuonxuasbvyk.supabase.co` and
-   `SUPABASE_STORAGE_BUCKET=tasknest-uploads` for the project created here.
+3. Set `SUPABASE_URL=https://PROJECT_REF.supabase.co` and choose a dedicated
+   public asset bucket, such as `SUPABASE_STORAGE_BUCKET=tasknest-uploads`.
 
-The connector does not expose the database password or backend secret key. Never
+Never
 commit `.env` or put a secret key in a `VITE_*` variable. No frontend Supabase
 client or publishable key is needed: all app data and uploads go through Go.
 
@@ -115,6 +112,9 @@ its existing routes. Do not add `tasknest` to exposed schemas or grant access to
 applies pending files in one transaction, records their SHA-256 checksums in
 `tasknest.schema_migrations`, and locks migration execution across replicas.
 Add a new file for schema changes; do not edit an already applied migration.
+The bootstrap accepts the original v1 checksum and can replay against its manually
+pre-applied schema. Migration 002 rejects existing case-colliding email accounts;
+resolve those identities manually before retrying startup.
 
 A shared PostgreSQL sequence keeps IDs distinct across task types. Marketplace
 and workspace milestones keep their existing `task_id` API but internally resolve
@@ -142,3 +142,8 @@ The rollback-only SQL smoke test is in
 `backend/config/testdata/supabase_smoke.sql`. It checks both task types,
 milestones, globally unique IDs, foreign keys, cascades, and private-schema access.
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for production settings.
+
+Catalog seeds have internal `seed_key` values, so changing titles or labels does
+not duplicate tasks on reruns. The first upgrade adopts legacy samples by their
+original titles. If legacy titles were already edited, the script stops: map
+those rows to the catalog keys in `backend/seeds/global_tasks.sql` before rerunning.
