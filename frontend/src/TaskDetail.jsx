@@ -153,7 +153,7 @@ const CTAStrip = memo(function CTAStrip({
         Status: <span className="text-text-primary">{status?.replace('_', ' ')}</span>
       </div>
       {slotsFilled >= capacity && !isAssignee && !isCreator && (
-        <div className="mt-2 text-[10px] text-red-400 font-bold text-center uppercase tracking-tighter">Assignment Full</div>
+        <div className="mt-2 text-[10px] text-red-400 font-bold text-center uppercase tracking-tighter">Task full</div>
       )}
     </div>
   );
@@ -783,7 +783,7 @@ export default function TaskDetail() {
 
   if (loading) return (
     <div className="flex bg-bg-main h-screen overflow-hidden">
-      <div className="w-[280px] shrink-0 bg-bg-sidebar border-r border-border-subtle hidden md:block animate-pulse" />
+      <div className="w-[240px] shrink-0 bg-bg-sidebar border-r border-border-subtle hidden md:block animate-pulse" />
       <div className="flex-1 overflow-y-auto">
         <div className="h-16 border-b border-border-subtle animate-pulse bg-bg-main/70" />
         <TaskDetailSkeleton />

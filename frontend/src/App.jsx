@@ -7,7 +7,6 @@ import { WorkspaceProvider } from './context/WorkspaceContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 const Auth        = lazy(() => import('./Auth'));
-const Verify      = lazy(() => import('./Verify'));
 const Profile     = lazy(() => import('./Profile'));
 const TaskDetail  = lazy(() => import('./TaskDetail'));
 const LandingPage = lazy(() => import('./LandingPage'));
@@ -71,16 +70,7 @@ function App() {
               }
             />
 
-            <Route
-              path="/verify"
-              element={
-                user ? (
-                  <Navigate to="/dashboard" replace />
-                ) : (
-                  <Verify onVerified={refreshAuth} />
-                )
-              }
-            />
+            <Route path="/verify" element={<Navigate to="/login" replace />} />
 
             <Route path="/join/:code" element={<JoinWorkspace />} />
             <Route path="/invite/:code" element={<JoinWorkspace />} />

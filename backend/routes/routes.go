@@ -3,22 +3,24 @@ package routes
 import (
 	"backend/controllers"
 	"backend/utils"
-	"net/http"
-    "fmt"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 func SetupRoutes(r *gin.Engine) {
-	r.GET("/api/public/stats", controllers.GetPublicStats)
+	// Liveness only: monitoring must not require authentication or database access.
+	r.GET("/health", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	r.POST("/api/waitlist", controllers.JoinWaitlist)
 
 	auth := r.Group("/api/auth")
 	{
 		auth.POST("/signup", controllers.Signup)
 		auth.POST("/login", controllers.Login)
-		auth.POST("/verify-otp", controllers.VerifyEmail)
-		auth.POST("/verify", controllers.VerifyEmail) 
-		auth.POST("/resend-verification", controllers.ResendVerification)
 		auth.POST("/google", controllers.GoogleAuth)
 		auth.POST("/logout", controllers.Logout)
 		auth.GET("/check", controllers.CheckAuth)
@@ -64,7 +66,7 @@ func SetupRoutes(r *gin.Engine) {
 		tasks.POST("/:id/status", controllers.UpdateTaskStatus)
 		tasks.PUT("/:id", controllers.UpdateTask)
 		tasks.DELETE("/:id", controllers.DeleteTask)
-		
+
 		tasks.POST("/:id/invite", controllers.InviteUser)
 		tasks.GET("/invitations", controllers.ListInvitations)
 		tasks.POST("/invitations/:id/respond", controllers.RespondToInvitation)
@@ -106,9 +108,7 @@ func SetupRoutes(r *gin.Engine) {
 	{
 		user.GET("/profile", controllers.GetProfile)
 		user.PUT("/profile", controllers.UpdateProfile)
-		user.POST("/request-password-otp", controllers.RequestPasswordOTP)
 		user.POST("/change-password", controllers.ChangePassword)
-		user.POST("/request-delete-otp", controllers.RequestDeleteOTP)
 		user.POST("/delete-account", controllers.DeleteAccount)
 	}
 

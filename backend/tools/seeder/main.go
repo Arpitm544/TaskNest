@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -20,9 +21,9 @@ func main() {
 		log.Println("Note: Using system environment variables (No .env found at", envPath, ")")
 	}
 
-	dsn := os.Getenv("DATABASE_URL")
-	if dsn == "" {
-		log.Fatal("DATABASE_URL not set")
+	dsn, err := databaseDSN(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatal(err)
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -115,4 +116,24 @@ func join(s []string) string {
 		res += v
 	}
 	return res
+}
+
+// Keep the standalone seeder's policy aligned with config.databaseDSN.
+func databaseDSN(raw string) (string, error) {
+	connection, err := url.Parse(raw)
+	if err != nil || (connection.Scheme != "postgres" && connection.Scheme != "postgresql") || connection.Host == "" {
+		return "", fmt.Errorf("DATABASE_URL must be a PostgreSQL connection URL")
+	}
+	parameters := connection.Query()
+	parameters.Set("search_path", "tasknest")
+	parameters.Set("application_name", "TaskNest")
+	parameters.Set("connect_timeout", "10")
+	if parameters.Get("sslmode") == "" {
+		parameters.Set("sslmode", "require")
+	}
+	if os.Getenv("GIN_MODE") == "release" && parameters.Get("sslmode") != "require" && parameters.Get("sslmode") != "verify-ca" && parameters.Get("sslmode") != "verify-full" {
+		return "", fmt.Errorf("production DATABASE_URL must require TLS")
+	}
+	connection.RawQuery = parameters.Encode()
+	return connection.String(), nil
 }

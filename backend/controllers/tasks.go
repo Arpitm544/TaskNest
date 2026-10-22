@@ -17,13 +17,13 @@ import (
 
 func CreateTask(c *gin.Context) {
 	var input struct {
-		Title         string  `json:"title"`
-		Description   string  `json:"description"`
-		Subject       string  `json:"subject"`
-		Deadline      *string `json:"deadline"`
-		AttachmentURL *string `json:"attachment_url"`
-		Capacity      int     `json:"capacity"`
-		MaxAssignees  int     `json:"max_assignees"`
+		Title         string   `json:"title"`
+		Description   string   `json:"description"`
+		Subject       string   `json:"subject"`
+		Deadline      *string  `json:"deadline"`
+		AttachmentURL *string  `json:"attachment_url"`
+		Capacity      int      `json:"capacity"`
+		MaxAssignees  int      `json:"max_assignees"`
 		Priority      string   `json:"priority"`
 		IssueType     string   `json:"issue_type"`
 		Labels        []string `json:"labels"`
@@ -36,6 +36,12 @@ func CreateTask(c *gin.Context) {
 		return
 	}
 
+	// Reject legacy invitation requests rather than silently publishing the task.
+	if strings.TrimSpace(input.AssigneeEmail) != "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Inviting a person during task creation is no longer supported. Remove the invite address to post this task."})
+		return
+	}
+
 	cap := input.Capacity
 	if cap < 1 {
 		cap = input.MaxAssignees
@@ -45,7 +51,7 @@ func CreateTask(c *gin.Context) {
 	}
 
 	userID := c.MustGet("user_id").(int64)
-	
+
 	// Start transaction
 	tx, err := config.DB.Begin()
 	if err != nil {
@@ -66,20 +72,6 @@ func CreateTask(c *gin.Context) {
 		return
 	}
 
-	// Handle immediate assignment if email is provided
-	cleanAssigneeEmail := ""
-	if strings.TrimSpace(input.AssigneeEmail) != "" {
-		cleanAssigneeEmail = strings.ToLower(strings.TrimSpace(input.AssigneeEmail))
-		fmt.Printf("Attempting to create invitation for task %d to %s\n", id, cleanAssigneeEmail)
-		_, invErr := tx.Exec(`INSERT INTO task_invitations (task_id, invitee_email, status, created_at) VALUES ($1, $2, 'pending', CURRENT_TIMESTAMP)`, id, cleanAssigneeEmail)
-		if invErr != nil {
-			fmt.Printf("Critical Error: Invitation failed for task %d: %v\n", id, invErr)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create private invitation. Task aborted."})
-			return
-		}
-		fmt.Printf("Success: Invitation queued for task %d\n", id)
-	}
-
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		fmt.Printf("Critical Error: Transaction commit failed for task %d: %v\n", id, err)
@@ -91,38 +83,15 @@ func CreateTask(c *gin.Context) {
 	services.LogActivity(id, userID, "created", "Task created")
 	c.JSON(http.StatusCreated, gin.H{"id": strconv.FormatInt(id, 10)})
 
-	go func() {
-		var name string
-		config.DB.QueryRow("SELECT name FROM users WHERE id=$1", userID).Scan(&name)
-
-		if cleanAssigneeEmail != "" {
-			// Targeted invitation email
-			services.SendInvitationEmail(cleanAssigneeEmail, input.Title, name, "You have been requested to work on this private assignment.")
-		} else {
-			// Global notification email
-			rows, _ := config.DB.Query("SELECT email FROM users WHERE id <> $1", userID)
-			defer rows.Close()
-			var emails []string
-			for rows.Next() {
-				var e string
-				rows.Scan(&e)
-				emails = append(emails, e)
-			}
-			if len(emails) > 0 {
-				services.SendNewAssignmentEmail(emails, input.Title, input.Description, name)
-			}
-		}
-	}()
 }
 
 func UpdateTask(c *gin.Context) {
 	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
 		// Try workspace_tasks if not in tasks table
 		err = config.DB.QueryRow("SELECT creator_id FROM workspace_tasks WHERE id = $1", taskID).Scan(&creatorID)
 		if err != nil {
@@ -131,19 +100,19 @@ func UpdateTask(c *gin.Context) {
 		}
 	}
 
-	if creatorID != userID {
+	if !creatorID.Valid || creatorID.Int64 != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	var input struct {
-		Title         string  `json:"title"`
-		Description   string  `json:"description"`
-		Subject       string  `json:"subject"`
-		Deadline      *string `json:"deadline"`
-		AttachmentURL *string `json:"attachment_url"`
-		Capacity      int     `json:"capacity"`
-		MaxAssignees  int     `json:"max_assignees"`
+		Title         string   `json:"title"`
+		Description   string   `json:"description"`
+		Subject       string   `json:"subject"`
+		Deadline      *string  `json:"deadline"`
+		AttachmentURL *string  `json:"attachment_url"`
+		Capacity      int      `json:"capacity"`
+		MaxAssignees  int      `json:"max_assignees"`
 		Priority      string   `json:"priority"`
 		IssueType     string   `json:"issue_type"`
 		Labels        []string `json:"labels"`
@@ -209,7 +178,7 @@ func ListTasks(c *gin.Context) {
 	          u_a.name as assignee_name, u_a.photo_url as assignee_photo_url, u_c.name as creator_name, u_c.photo_url as creator_photo_url, t.priority, t.ai_optimized, COALESCE(t.capacity, 1) as capacity,
 	          t.issue_type, t.labels
 	          FROM tasks t LEFT JOIN users u_a ON t.assignee_id = u_a.id LEFT JOIN users u_c ON t.creator_id = u_c.id
-	          WHERE t.creator_id <> $1
+	          WHERE (t.creator_id IS NULL OR t.creator_id <> $1)
 	            AND (SELECT COUNT(*) FROM task_assignees ta WHERE ta.task_id = t.id) < COALESCE(t.capacity, 1)
 	            AND NOT EXISTS (SELECT 1 FROM task_assignees ta2 WHERE ta2.task_id = t.id AND ta2.user_id = $2)
 	            AND NOT EXISTS (SELECT 1 FROM task_invitations ti WHERE ti.task_id = t.id AND ti.status = 'pending')`
@@ -256,7 +225,7 @@ func AcceptTask(c *gin.Context) {
 	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var title string
 	var capacity int
 	err := config.DB.QueryRow(
@@ -268,7 +237,7 @@ func AcceptTask(c *gin.Context) {
 		return
 	}
 
-	if creatorID == userID {
+	if creatorID.Valid && creatorID.Int64 == userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You cannot accept your own assignment"})
 		return
 	}
@@ -305,13 +274,6 @@ func AcceptTask(c *gin.Context) {
 	services.LogActivity(taskID, userID, "accepted", "Member joined the task")
 	c.JSON(http.StatusOK, gin.H{"message": "Assignment accepted"})
 
-	go func() {
-		var cEmail, aEmail string
-		config.DB.QueryRow(`SELECT email FROM users WHERE id=$1`, creatorID).Scan(&cEmail)
-		config.DB.QueryRow(`SELECT email FROM users WHERE id=$1`, userID).Scan(&aEmail)
-		services.SendAssignmentAcceptedEmail(cEmail, title, "Your assignment has been accepted")
-		services.SendAssignmentAcceptedEmail(aEmail, title, "You have accepted this assignment")
-	}()
 }
 
 func GetTask(c *gin.Context) {
@@ -322,7 +284,7 @@ func GetTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid task ID"})
 		return
 	}
-	
+
 	fmt.Printf("Fetching details for Task ID: %d (parsed from %s)\n", id, idStr)
 	userID := c.MustGet("user_id").(int64)
 
@@ -352,11 +314,11 @@ func GetTask(c *gin.Context) {
 	if err != nil {
 		// If not found in tasks, try workspace_tasks
 		fmt.Printf("Task %d not found in tasks table, trying workspace_tasks...\n", id)
-		
+
 		workspaceQuery := `SELECT t.id, t.title, t.description, t.status, t.creator_id, t.assignee_id, t.due_date as deadline, t.priority, t.created_at, t.updated_at,
 		                  u_c.name, u_c.email, u_c.photo_url, u_a.name, u_a.email, u_a.photo_url, t.subject, t.attachment_url, t.issue_type, t.labels, t.workspace_id
 		                  FROM workspace_tasks t LEFT JOIN users u_c ON t.creator_id = u_c.id LEFT JOIN users u_a ON t.assignee_id = u_a.id WHERE t.id = $1`
-		
+
 		var wid sql.NullInt64
 		err = config.DB.QueryRow(workspaceQuery, id).Scan(
 			&t.ID, &t.Title, &desc, &t.Status, &cid, &aid, &t.Deadline, &priority, &t.CreatedAt, &t.UpdatedAt,
@@ -368,7 +330,7 @@ func GetTask(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
 			return
 		}
-		
+
 		if wid.Valid {
 			t.WorkspaceID = &wid.Int64
 			// Fetch user role in workspace
@@ -378,7 +340,7 @@ func GetTask(c *gin.Context) {
 				t.UserRole = role
 			}
 		}
-		
+
 		// Map workspace specific logic
 		t.Accepted = true // Workspace tasks are considered accepted by default if they exist
 		t.Capacity = 1
@@ -420,16 +382,16 @@ func GetTask(c *gin.Context) {
 	if aid.Valid {
 		t.AssigneeID = &aid.Int64
 	}
-	
+
 	t.Assignees = make([]models.TaskAssignee, 0)
 	// If it was a workspace task, the creator and assignee are essentially the "assignees" list for TaskDetail
 	if aid.Valid {
 		t.Assignees = append(t.Assignees, models.TaskAssignee{
-			TaskID: t.ID,
-			UserID: aid.Int64,
-			Status: t.Status,
-			Name: an.String,
-			Email: ae.String,
+			TaskID:   t.ID,
+			UserID:   aid.Int64,
+			Status:   t.Status,
+			Name:     an.String,
+			Email:    ae.String,
 			PhotoURL: ap.String,
 		})
 	}
@@ -503,10 +465,10 @@ func InviteUser(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var taskTitle string
 	err := config.DB.QueryRow(`SELECT creator_id, title FROM tasks WHERE id = $1`, taskID).Scan(&creatorID, &taskTitle)
-	if err != nil || creatorID != userID {
+	if err != nil || (!creatorID.Valid || creatorID.Int64 != userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only creators can invite users"})
 		return
 	}
@@ -517,18 +479,13 @@ func InviteUser(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Invitation already sent to this user"})
 		return
 	}
-	go func() {
-		var creatorName string
-		config.DB.QueryRow(`SELECT name FROM users WHERE id = $1`, userID).Scan(&creatorName)
-		services.SendAssignmentAcceptedEmail(input.Email, taskTitle, fmt.Sprintf("%s has requested you to work on their assignment", creatorName))
-	}()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Invitation sent successfully"})
 }
 
 func ListInvitations(c *gin.Context) {
 	userEmail := c.GetString("user_email")
-	
+
 	if userEmail == "" {
 		userID := c.MustGet("user_id").(int64)
 		err := config.DB.QueryRow(`SELECT email FROM users WHERE id = $1`, userID).Scan(&userEmail)
@@ -547,10 +504,10 @@ func ListInvitations(c *gin.Context) {
 		FROM task_invitations i
 		INNER JOIN tasks t ON i.task_id = t.id
 		LEFT JOIN users u ON t.creator_id = u.id
-		WHERE i.invitee_email ILIKE $1 AND i.status = 'pending'
+		WHERE LOWER(TRIM(i.invitee_email)) = LOWER(TRIM($1)) AND i.status = 'pending'
 		ORDER BY i.created_at DESC`
 	rows, err := config.DB.Query(query, cleanEmail)
-	
+
 	if err != nil {
 		fmt.Printf("Database error fetching invitations: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch invitations"})
@@ -599,7 +556,7 @@ func RespondToInvitation(c *gin.Context) {
 	var taskID int64
 	var inviteeEmail string
 	err := config.DB.QueryRow(`SELECT task_id, invitee_email FROM task_invitations WHERE id = $1`, invitationID).Scan(&taskID, &inviteeEmail)
-	
+
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Invitation not found"})
 		return
@@ -618,11 +575,11 @@ func RespondToInvitation(c *gin.Context) {
 	}
 
 	tx, _ := config.DB.Begin()
-	
+
 	tx.Exec(`INSERT INTO task_assignees (task_id, user_id, status) VALUES ($1, $2, 'accepted') ON CONFLICT DO NOTHING`, taskID, userID)
 	tx.Exec(`UPDATE tasks SET accepted = TRUE, assignee_id = COALESCE(assignee_id, $1), status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, userID, taskID)
 	tx.Exec(`UPDATE task_invitations SET status = 'accepted' WHERE id = $1`, invitationID)
-	
+
 	tx.Commit()
 
 	c.JSON(http.StatusOK, gin.H{"message": "Invitation accepted"})
@@ -689,7 +646,7 @@ func AssignMilestone(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var workspaceID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -700,7 +657,7 @@ func AssignMilestone(c *gin.Context) {
 		}
 	}
 
-	isAuthorized := creatorID == userID
+	isAuthorized := (creatorID.Valid && creatorID.Int64 == userID)
 	if !isAuthorized && workspaceID.Valid {
 		var role string
 		err = config.DB.QueryRow(`SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, workspaceID.Int64, userID).Scan(&role)
@@ -739,7 +696,7 @@ func ReorderMilestones(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var workspaceID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -750,7 +707,7 @@ func ReorderMilestones(c *gin.Context) {
 		}
 	}
 
-	isAuthorized := creatorID == userID
+	isAuthorized := (creatorID.Valid && creatorID.Int64 == userID)
 	if !isAuthorized && workspaceID.Valid {
 		var role string
 		err = config.DB.QueryRow(`SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, workspaceID.Int64, userID).Scan(&role)
@@ -791,7 +748,7 @@ func UpdateTaskStatus(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	inTasksTable := true
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -815,15 +772,15 @@ func UpdateTaskStatus(c *gin.Context) {
 		}
 	}
 
-	if creatorID == userID || !inTasksTable {
+	if (creatorID.Valid && creatorID.Int64 == userID) || !inTasksTable {
 		if inTasksTable {
-			config.DB.Exec(`UPDATE tasks SET status = $1, progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`, 
+			config.DB.Exec(`UPDATE tasks SET status = $1, progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
 				strings.ToLower(input.Status), input.Progress, taskID)
 		} else {
-			config.DB.Exec(`UPDATE workspace_tasks SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, 
+			config.DB.Exec(`UPDATE workspace_tasks SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
 				strings.ToLower(input.Status), taskID)
 		}
-		
+
 		services.LogActivity(taskID, userID, "status_updated", fmt.Sprintf("Task status updated to %s", input.Status))
 		c.JSON(http.StatusOK, gin.H{"message": "Global status updated"})
 		return
@@ -832,9 +789,9 @@ func UpdateTaskStatus(c *gin.Context) {
 	var exists bool
 	config.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM task_assignees WHERE task_id=$1 AND user_id=$2)`, taskID, userID).Scan(&exists)
 	if exists {
-		config.DB.Exec(`UPDATE task_assignees SET status = $1, progress = $2 WHERE task_id = $3 AND user_id = $4`, 
+		config.DB.Exec(`UPDATE task_assignees SET status = $1, progress = $2 WHERE task_id = $3 AND user_id = $4`,
 			strings.ToLower(input.Status), input.Progress, taskID, userID)
-		
+
 		services.LogActivity(taskID, userID, "status_updated", fmt.Sprintf("Task status updated to %s", input.Status))
 		c.JSON(http.StatusOK, gin.H{"message": "Your progress updated"})
 		return
@@ -847,9 +804,9 @@ func DeleteTask(c *gin.Context) {
 	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
-	if creatorID != userID {
+	if !creatorID.Valid || creatorID.Int64 != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -881,7 +838,7 @@ func ListMyTasks(c *gin.Context) {
 	          t.issue_type, t.labels
 	          FROM tasks t LEFT JOIN users u_a ON t.assignee_id = u_a.id LEFT JOIN users u_c ON t.creator_id = u_c.id
 	          WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $1)`
-	
+
 	var tasks []models.Task
 	var err error
 	if search != "" {
@@ -906,7 +863,7 @@ func ListPostedTasks(c *gin.Context) {
 	          u_a.name, u_a.photo_url, u_c.name, u_c.photo_url, t.priority, t.ai_optimized, COALESCE(t.capacity, 1) as capacity,
 	          t.issue_type, t.labels
 	          FROM tasks t LEFT JOIN users u_a ON t.assignee_id = u_a.id LEFT JOIN users u_c ON t.creator_id = u_c.id WHERE t.creator_id = $1`
-	
+
 	var tasks []models.Task
 	var err error
 	if search != "" {
@@ -933,7 +890,7 @@ func ListActiveTasks(c *gin.Context) {
 	          FROM tasks t LEFT JOIN users u_a ON t.assignee_id = u_a.id LEFT JOIN users u_c ON t.creator_id = u_c.id 
 	          WHERE (t.creator_id = $1 OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = $2)) 
 	          AND t.status IN ('accepted', 'in_progress', 'submitted')`
-	
+
 	var tasks []models.Task
 	var err error
 	if search != "" {
@@ -1008,9 +965,9 @@ func GenerateMilestones(c *gin.Context) {
 	userID := c.MustGet("user_id").(int64)
 
 	var currentCount int
-	var creatorID int64
+	var creatorID sql.NullInt64
 	inTasksTable := true
-	
+
 	err := config.DB.QueryRow("SELECT ai_milestone_count, creator_id FROM tasks WHERE id = $1", taskID).Scan(&currentCount, &creatorID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1026,12 +983,12 @@ func GenerateMilestones(c *gin.Context) {
 		}
 	}
 
-	if creatorID != userID {
+	if !creatorID.Valid || creatorID.Int64 != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only the task creator can generate milestones"})
 		return
 	}
 
-	if currentCount >= 3 {	
+	if currentCount >= 3 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "AI milestone generation limit reached (max 3 times per task)"})
 		return
 	}
@@ -1068,7 +1025,7 @@ func GenerateMilestones(c *gin.Context) {
 	} else {
 		_, err = tx.Exec("UPDATE workspace_tasks SET ai_milestone_count = ai_milestone_count + 1, ai_optimized = TRUE WHERE id = $1", taskID)
 	}
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update AI usage counter"})
 		return
@@ -1130,7 +1087,7 @@ func DeleteMilestone(c *gin.Context) {
 	milestoneID, _ := strconv.Atoi(c.Param("mid"))
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var workspaceID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -1142,7 +1099,7 @@ func DeleteMilestone(c *gin.Context) {
 		}
 	}
 
-	isAuthorized := creatorID == userID
+	isAuthorized := (creatorID.Valid && creatorID.Int64 == userID)
 	if !isAuthorized && workspaceID.Valid {
 		// Check workspace role
 		var role string

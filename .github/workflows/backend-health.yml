@@ -1,0 +1,52 @@
+name: Backend health check
+
+"on":
+  schedule:
+    # Every ten minutes, away from the busy start of the hour.
+    - cron: '7,17,27,37,47,57 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: backend-health-check
+  cancel-in-progress: false
+
+jobs:
+  health-check:
+    # Remain inactive until the backend has been deployed and configured.
+    if: ${{ vars.RENDER_BACKEND_URL != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Request backend health endpoint
+        shell: bash
+        env:
+          BACKEND_URL: ${{ vars.RENDER_BACKEND_URL }}
+        run: |
+          case "$BACKEND_URL" in
+            https://*) ;;
+            *) echo '::error::RENDER_BACKEND_URL must be an HTTPS backend origin.'; exit 1 ;;
+          esac
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(curl --proto '=https' --fail --silent --show-error \
+            --connect-timeout 10 --max-time 90 \
+            --retry 2 --retry-all-errors --retry-delay 5 \
+            --output "$response_file" --write-out '%{http_code}' \
+            "${BACKEND_URL%/}/health")"
+          if [[ "$status" != '200' ]]; then
+            echo '::error::Backend did not return HTTP 200.'
+            exit 1
+          fi
+          python3 - "$response_file" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1]) as response:
+              result = json.load(response)
+          if result != {"status": "ok"}:
+              raise SystemExit("Backend did not return the expected health response.")
+          print("Backend health check passed.")
+          PY

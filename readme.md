@@ -1,128 +1,149 @@
 # TaskNest
 
-TaskNest is a full-stack web application designed to connect students for task sharing and completion. It features a modern user interface and a robust backend API to handle user authentication, task management, and communication.
+TaskNest connects students for task sharing and collaboration. It uses React,
+Vite, and Tailwind CSS with a Go/Gin backend. Supabase provides PostgreSQL and
+file storage. The backend keeps the existing JWT cookie login, optional Firebase
+Google sign-in, and Groq AI integration. Email delivery has been removed.
 
-## Tech Stack
+For AI, configure `GROQ_API_KEY` and optionally `GROQ_MODEL` (default
+`openai/gpt-oss-20b`).
 
-### Frontend
-- **Framework**: React with Vite
-- **Styling**: TailwindCSS
-- **Routing**: React Router DOM
-- **Authentication/Integrations**: Firebase
-- **Charts**: Recharts
-- **Icons**: Lucide React
+## Requirements
 
-### Backend
-- **Language**: Go
-- **Framework**: Gin Web Framework
-- **Database**: PostgreSQL (CockroachDB)
-- **Authentication**: JWT & Firebase Admin SDK
-- **Storage**: AWS S3 (for media/file uploads)
-- **Email Delivery**: SMTP
-- **Security**: CORS, Bcrypt
+- Go 1.25 or newer.
+- Node.js 20.19+ on the 20.x line, or 22.12+.
+- A Supabase project with its database connection URL and a backend secret key.
 
----
+## Configure Supabase
 
-## Local Setup Instructions
+Create a Supabase project. Copy `backend/.env.example` to `backend/.env` and
+fill in your project's settings. Replace `JWT_SECRET` with a unique long random
+secret (for example, generate one with `openssl rand -hex 32`).
 
-Follow these steps to set up the project locally on your machine.
-
-### Prerequisites
-Make sure you have the following installed:
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
-- [Go](https://golang.org/) (v1.25 or higher)
-- A PostgreSQL or CockroachDB database instance
-- An AWS Account (for S3 storage)
-- A Firebase Project (for Auth/Config)
-
-### 1. Clone the Repository
-```bash
-git clone <your-repo-url>
-cd TaskNest-main
+```env
+DATABASE_URL=postgresql://postgres.PROJECT_REF:YOUR_DATABASE_PASSWORD@YOUR_SESSION_POOLER_HOST:5432/postgres?sslmode=require
+SUPABASE_SECRET_KEY=sb_secret_YOUR_BACKEND_SECRET_KEY
+SUPABASE_URL=https://PROJECT_REF.supabase.co
+JWT_SECRET=YOUR_UNIQUE_LONG_RANDOM_SECRET
 ```
 
-### 2. Backend Setup
-The backend runs on Go and requires several environment variables to connect to external services.
+1. In the project's **Connect** dialog, copy the PostgreSQL URI. For an IPv4
+   backend use the **Session pooler** URI on port 5432; direct connections need
+   IPv6 unless the project has the IPv4 add-on. Replace the database password
+   and URI-encode special characters in it. Use the hostname shown by Supabase.
+2. Under **Settings → API Keys**, copy a **secret** key (`sb_secret_...`). Keep
+   it in the backend environment. A publishable key is not sufficient.
+3. Set `SUPABASE_URL=https://PROJECT_REF.supabase.co` and choose a dedicated
+   public asset bucket, such as `SUPABASE_STORAGE_BUCKET=tasknest-uploads`.
 
-1. Navigate to the `backend` directory:
-   ```bash
-   cd backend
-   ```
+Never
+commit `.env` or put a secret key in a `VITE_*` variable. No frontend Supabase
+client or publishable key is needed: all app data and uploads go through Go.
 
-2. Install Go dependencies:
-   ```bash
-   go mod tidy
-   ```
+Reference: [database connections](https://supabase.com/docs/guides/database/connecting-to-postgres),
+[API keys](https://supabase.com/docs/guides/getting-started/api-keys).
 
-3. Create a `.env` file in the `backend` directory with the following variables:
-   ```env
-   # Database Configuration
-   DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<dbname>?sslmode=require
+## Run the backend
 
-   # JWT Configuration
-   JWT_SECRET=your_super_secret_jwt_key
+From `backend`:
 
-   # Server Configuration
-   PORT=8080
+```sh
+go mod download
+go run main.go
+```
 
-   # SMTP Configuration (for sending emails)
-   SMTP_EMAIL=your_support_email@gmail.com
-   SMTP_PASSWORD=your_app_password
-   SMTP_HOST=smtp.gmail.com
-   SMTP_PORT=587
+The backend listens on port 8080 by default. It checks the database migrations
+and upload bucket before starting. Database failures stop startup instead of
+leaving a partially initialized app. System environment variables take precedence
+over `.env` values.
 
-   # AWS S3 Configuration (for file uploads)
-   AWS_REGION=your_aws_region
-   AWS_ACCESS_KEY_ID=your_aws_access_key
-   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-   AWS_S3_BUCKET=your_s3_bucket_name
+The first configured startup creates `tasknest-uploads` as a **public** bucket if
+it is missing, allowing PNG, JPEG, GIF, WebP, AVIF, and PDF files up to 10 MB.
+An existing private bucket is never automatically made public. Files receive
+random names, and the backend detects their content rather than trusting the
+client's extension. Existing profile/task upload API responses retain `{url}`.
 
-   # Firebase Configuration
-   FIREBASE_SERVICE_ACCOUNT_JSON=./firebase/your-firebase-adminsdk.json
-   ```
+Anyone with an uploaded file's URL can read it, matching the app's existing
+permanent-link behavior. Use this bucket for public assets, not confidential
+files. Restricted documents require a separate private bucket and authorization
+flow. See [Supabase bucket access models](https://supabase.com/docs/guides/storage/buckets/fundamentals).
 
-4. Add your Firebase service account JSON file to the `backend/firebase/` directory and ensure the path matches the `FIREBASE_SERVICE_ACCOUNT_JSON` variable in your `.env`.
+## Run the frontend
 
-5. Start the backend server:
-   ```bash
-   go run main.go
-   ```
-   The backend should now be running on `http://localhost:8080`.
+From `frontend`, run `npm ci` and create `.env`:
 
-### 3. Frontend Setup
-The frontend is a React application powered by Vite.
+```env
+VITE_API_URL=http://localhost:8080
 
-1. Open a new terminal window and navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
+# Optional Firebase Google sign-in configuration.
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
 
-2. Install Node dependencies:
-   ```bash
-   npm install
-   ```
+Run `npm run dev` and open the displayed URL, normally `http://localhost:5173`.
+Email/password login works without Firebase. Google sign-in additionally needs
+`FIREBASE_SERVICE_ACCOUNT_JSON` configured on the backend.
 
-3. Create a `.env` file in the `frontend` directory with your Firebase and API configurations:
-   ```env
-   VITE_FIREBASE_API_KEY=your_firebase_api_key
-   VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
-   VITE_FIREBASE_PROJECT_ID=your_project_id
-   VITE_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
-   VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-   VITE_FIREBASE_APP_ID=your_app_id
+## Accounts
 
-   # Backend API URL (for local development)
-   VITE_API_URL=http://localhost:8080
-   ```
+- Signup creates an account immediately and directs the user to sign in.
+- Password changes require the current password and a new password of 6–72 bytes.
+- Account deletion requires the current password, or a fresh sign-in with the
+  same Google account for Google profiles.
+- Google sign-in does not silently merge with a password account using the same
+  address. Use that account's existing login method.
+- There are no verification codes, outbound email notifications, or email-based
+  password recovery. Recovery would need a separate implementation.
+- Email addresses remain account identifiers and targets for in-app invitations.
 
-4. Start the frontend development server:
-   ```bash
-   npm run dev
-   ```
-   The frontend should now be running, typically on `http://localhost:5173`. Open this URL in your browser to view the application.
+## Database layout and migrations
 
----
+App tables live in the private **tasknest** schema. They are not exposed through
+Supabase's default public Data API. The backend connects as the database owner,
+sets its connection search path to `tasknest`, and performs authorization through
+its existing routes. Do not add `tasknest` to exposed schemas or grant access to
+`anon`/`authenticated` without implementing a corresponding authorization model.
 
-## Deployment
+`backend/config/migrations/*.sql` is embedded in the backend binary. Startup
+applies pending files in one transaction, records their SHA-256 checksums in
+`tasknest.schema_migrations`, and locks migration execution across replicas.
+Add a new file for schema changes; do not edit an already applied migration.
+The bootstrap accepts the original v1 checksum and can replay against its manually
+pre-applied schema. Migration 002 rejects existing case-colliding email accounts;
+resolve those identities manually before retrying startup.
 
-For details on how to deploy this application to a production server, please see the [DEPLOYMENT.md](./DEPLOYMENT.md) guide.
+A shared PostgreSQL sequence keeps IDs distinct across task types. Marketplace
+and workspace milestones keep their existing `task_id` API but internally resolve
+to proper foreign keys, including cascading cleanup on task deletion. Workspace
+columns used by task creation and AI features are included in the initial schema.
+
+The optional development seeder in `backend/tools/seeder` now targets `tasknest`.
+Run it from that folder only after initializing the database; it adds demo data.
+
+## Checks
+
+Uploads always use Supabase Storage. AWS and local disk storage are no longer
+needed.
+
+```sh
+cd backend
+go test ./...
+# Optional: run native PostgreSQL integration checks on an isolated test database.
+TEST_DATABASE_URL='your-test-connection-uri' go test ./config -run TestPostgresMigrationAndSchemaIntegration -v
+cd ../frontend
+npm run build
+```
+
+The rollback-only SQL smoke test is in
+`backend/config/testdata/supabase_smoke.sql`. It checks both task types,
+milestones, globally unique IDs, foreign keys, cascades, and private-schema access.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for production settings.
+
+Catalog seeds have internal `seed_key` values, so changing titles or labels does
+not duplicate tasks on reruns. The first upgrade adopts legacy samples by their
+original titles. If legacy titles were already edited, the script stops: map
+those rows to the catalog keys in `backend/seeds/global_tasks.sql` before rerunning.

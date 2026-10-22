@@ -15,7 +15,7 @@ const Header = React.memo(({
       <div className="flex items-center gap-4 flex-1 max-w-xl">
         <button 
           onClick={openMobileMenu}
-          className="lg:hidden p-2 text-text-secondary hover:text-text-primary transition-colors"
+          className="md:hidden p-2 text-text-secondary hover:text-text-primary transition-colors"
         >
           <Menu size={20} />
         </button>
@@ -25,11 +25,12 @@ const Header = React.memo(({
             className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/50 group-focus-within:text-accent transition-colors" 
           />
           <input
+            aria-label="Search tasks"
             type="text"
-            placeholder="Search assignments, subjects, or creators..."
+            placeholder="Search tasks and categories…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-background-secondary border border-border-subtle rounded-xl py-2.5 pl-10 pr-12 text-sm font-medium text-text-primary placeholder:text-text-secondary/40 focus:outline-none focus:border-accent/30 focus:ring-4 focus:ring-accent/5 transition-all"
+            className="w-full bg-background-secondary border border-border-subtle rounded-xl py-2.5 pl-10 pr-12 text-sm font-medium text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-accent/30 focus:ring-4 focus:ring-accent/5 transition-all"
           />
           <div className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 items-center gap-1 px-1.5 py-1 bg-bg-main border border-border-subtle rounded-md pointer-events-none group-focus-within:opacity-0 transition-opacity">
             <span className="text-[10px] font-bold text-text-secondary opacity-60">⌘</span>
@@ -40,6 +41,7 @@ const Header = React.memo(({
       <div className="flex items-center gap-4 ml-4">
         <button 
           onClick={() => setIsSettingsModalOpen ? setIsSettingsModalOpen(true) : navigate('/dashboard/profile?settings=true')}
+          aria-label="Open account settings"
           className="w-8 h-8 rounded-full overflow-hidden border border-text-primary/10 shadow-sm hover:border-accent/50 transition-all active:scale-95"
         >
           <img src={userProfile?.photo_url || `https://ui-avatars.com/api/?name=${userProfile?.name}`} alt="Profile" className="w-full h-full object-cover" />

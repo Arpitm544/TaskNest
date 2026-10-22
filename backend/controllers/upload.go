@@ -1,38 +1,40 @@
 package controllers
 
 import (
-	"fmt"
-	"net/http"
-	"path/filepath"
-	"strings"
-	"time"
 	"backend/services"
+	"errors"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 func UploadHandler(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, services.MaxUploadSize+(1<<20))
 	file, header, err := c.Request.FormFile("attachment")
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse file upload: " + err.Error()})
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "File must be 10 MB or smaller"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "A file attachment is required"})
 		return
 	}
 	defer file.Close()
-
-	contentType := header.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "image/") && contentType != "application/pdf" {
-		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Only images and PDFs are allowed"})
-		return
-	}
-
-	filename := fmt.Sprintf("%d-%s", time.Now().UnixNano(), filepath.Base(header.Filename))
-
-	filename = strings.ReplaceAll(filename, " ", "_")
-
-	url, err := services.UploadFile(file, filename)
+	result, err := services.UploadFile(file, header.Filename)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload file: " + err.Error()})
+		status := http.StatusInternalServerError
+		if errors.Is(err, services.ErrUploadTooLarge) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		if errors.Is(err, services.ErrUploadType) {
+			status = http.StatusUnsupportedMediaType
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"url": url})
+	c.JSON(http.StatusOK, gin.H{"url": result})
 }

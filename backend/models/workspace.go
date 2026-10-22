@@ -67,7 +67,7 @@ type WorkspaceTask struct {
 	Description string     `json:"description"`
 	Status      string     `json:"status"`
 	Priority    string     `json:"priority"`
-	CreatorID   int64      `json:"creator_id,string"`
+	CreatorID   *int64      `json:"creator_id,string"`
 	AssigneeID  *int64     `json:"assignee_id,string"`
 	MilestoneID *int64     `json:"milestone_id,string"`
 	DueDate     *time.Time `json:"due_date"`

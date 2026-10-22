@@ -1,6 +1,11 @@
 package main
 
 import (
+	"backend/config"
+	"backend/routes"
+	"backend/services"
+	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -8,10 +13,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"fmt"
-	"backend/config"
-	"backend/routes"
-	"backend/services"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -25,26 +26,18 @@ func main() {
 	}
 
 	envPath := filepath.Join(filepath.Dir(currentFile), ".env")
-	if err := godotenv.Overload(envPath); err != nil {
+	if err := godotenv.Load(envPath); err != nil {
 		log.Println("Note: No backend .env file found, using system environment variables")
 	}
 
+	if err := services.ValidateStorageConfig(); err != nil {
+		log.Fatal(err)
+	}
 	config.ConnectDatabase()
-	
-	// Run migrations
-	fmt.Println("Running database migrations...")
-	config.DB.Exec("ALTER TABLE workspace_tasks ADD COLUMN IF NOT EXISTS ai_milestone_count INT DEFAULT 0")
-	config.DB.Exec("ALTER TABLE workspace_tasks ADD COLUMN IF NOT EXISTS ai_optimized BOOLEAN DEFAULT FALSE")
-	config.DB.Exec("ALTER TABLE milestones DROP CONSTRAINT IF EXISTS milestones_task_id_fkey")
-	config.DB.Exec("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS assignee_id BIGINT")
-	config.DB.Exec("ALTER TABLE milestones ADD COLUMN IF NOT EXISTS position INT DEFAULT 0")
-	
-	// Unify statuses
-	config.DB.Exec("UPDATE workspace_tasks SET status = 'pending' WHERE status = 'todo'")
-	config.DB.Exec("UPDATE workspace_tasks SET status = 'in_review' WHERE status = 'submitted'")
-	config.DB.Exec("UPDATE workspace_tasks SET status = 'completed' WHERE status = 'done'")
-	
-	fmt.Println("Migrations completed.")
+
+	if err := services.InitializeStorage(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 	config.InitFirebase()
 
 	if os.Getenv("GIN_MODE") == "release" {
