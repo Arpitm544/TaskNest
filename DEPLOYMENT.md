@@ -75,6 +75,36 @@ form overhead (at least 11 MB). Keep all Supabase/database secrets out of `VITE_
 The backend's built-in `/` route returns JSON, so use separate static hosting or
 configure the reverse proxy to serve the frontend at `/`.
 
+## Backend health monitoring
+
+`GET /health` is a public liveness endpoint returning HTTP 200 and
+`{"status":"ok"}`. It does not query Supabase or require login, and disables
+response caching. Set Render's **Health Check Path** to `/health`.
+
+The `Backend health check` GitHub Actions workflow requests this endpoint every
+10 minutes from outside Render. After deploying the backend:
+
+1. Under GitHub **Settings → Secrets and variables → Actions → Variables**, add
+   the repository variable `RENDER_BACKEND_URL` with the backend HTTPS origin,
+   such as `https://YOUR_SERVICE.onrender.com` (without `/health`). No secret is
+   needed for this public endpoint. The job skips until this variable is set.
+2. Merge the workflow into the default branch (`main`) to enable scheduling.
+3. Open **Actions → Backend health check → Run workflow** to verify the deployed
+   endpoint. The response must be HTTP 200 with the expected JSON body.
+
+This can help avoid Render's 15-minute idle timeout, but GitHub schedules may
+be delayed or dropped, so it cannot guarantee that the backend stays awake.
+Public repository schedules are disabled after 60 days without repository
+activity. Render may restart free instances, and keeping the backend running
+uses the workspace's shared 750 free instance hours per month. See
+[Render free service limits](https://render.com/docs/free) and
+[GitHub scheduling limits](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+For a precise monitoring interval, use an external uptime monitoring service;
+for continuous availability, use a paid backend instance.
+
+This liveness check does not generate database activity. The separate daily
+database check below handles that.
+
 ## Daily database check
 
 `.github/workflows/database-check.yml` runs a read-only query against the task

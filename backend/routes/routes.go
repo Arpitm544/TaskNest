@@ -9,6 +9,12 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine) {
+	// Liveness only: monitoring must not require authentication or database access.
+	r.GET("/health", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	r.POST("/api/waitlist", controllers.JoinWaitlist)
 
 	auth := r.Group("/api/auth")
