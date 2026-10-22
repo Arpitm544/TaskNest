@@ -7,6 +7,10 @@
       "destination": "https://tasknest-nooh.onrender.com/api/:path*"
     },
     {
+      "source": "/tasks",
+      "destination": "https://tasknest-nooh.onrender.com/tasks"
+    },
+    {
       "source": "/tasks/:path*",
       "destination": "https://tasknest-nooh.onrender.com/tasks/:path*"
     },
