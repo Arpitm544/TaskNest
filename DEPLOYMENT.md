@@ -72,6 +72,23 @@ form overhead (at least 11 MB). Keep all Supabase/database secrets out of `VITE_
 The backend's built-in `/` route returns JSON, so use separate static hosting or
 configure the reverse proxy to serve the frontend at `/`.
 
+## Vercel frontend
+
+The committed `frontend/vercel.json` forwards `/api/*` and `/tasks/*` to
+`https://tasknest-nooh.onrender.com` and serves the React entry point for
+client-side routes. This keeps browser API requests and login cookies on the
+frontend origin. If the backend address changes, update both rewrite destinations.
+
+Import the repository on Vercel with root directory `frontend`, framework Vite,
+build command `npm run build`, and output directory `dist`. Deploy the branch
+containing this configuration. Leave `VITE_API_URL` and `VITE_API_URL_SECONDARY`
+unset (or empty) on Vercel to use the rewrites. Add the frontend's
+`VITE_FIREBASE_*` configuration only if enabling Google sign-in, and authorize
+the deployed frontend domain in Firebase Authentication. Set Render's
+`PRODUCTION_DOMAIN` to the frontend HTTPS origin and keep `GIN_MODE=release`.
+Never copy database credentials, JWT secrets, or Supabase backend keys to Vercel's
+frontend environment.
+
 ## Backend health monitoring
 
 `GET /health` is a public liveness endpoint returning HTTP 200 and
