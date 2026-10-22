@@ -122,7 +122,7 @@ To enable it:
 3. Open **Actions → Database check → Run workflow** and confirm it succeeds.
 
 Supabase can pause free projects with insufficient activity over seven days.
-These scheduled reads can help, but does not guarantee exemption from pausing or resume
+These scheduled reads can help, but do not guarantee exemption from pausing or resume
 an already paused project. Resume a paused project in the Supabase dashboard.
 Only a paid plan guarantees exemption from inactivity pausing.
 See [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing).
