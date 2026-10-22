@@ -75,6 +75,36 @@ form overhead (at least 11 MB). Keep all Supabase/database secrets out of `VITE_
 The backend's built-in `/` route returns JSON, so use separate static hosting or
 configure the reverse proxy to serve the frontend at `/`.
 
+## Daily database check
+
+`.github/workflows/database-check.yml` runs a read-only query against the task
+table daily at 03:17 UTC (08:47 IST), independently of the deployed backend.
+It also supports a manual run from GitHub Actions. It never modifies task data
+or prints task records or the connection URL.
+
+To enable it:
+
+1. In GitHub **Settings → Secrets and variables → Actions**, add the repository
+   secret `SUPABASE_DATABASE_URL`. Use your Supabase **Session pooler** connection
+   URI, with the real password and `sslmode=require`. GitHub's standard runners
+   need an IPv4-compatible connection; a direct Supabase URI may require IPv6.
+   The existing backend `DATABASE_URL` can be reused if it uses the Session pooler.
+   Do not commit the URL or paste it in workflow files.
+2. Merge this workflow into the repository's default branch (`main`). GitHub only
+   schedules workflows that exist on the default branch.
+3. Open **Actions → Daily database check → Run workflow** and confirm it succeeds.
+
+Supabase can pause free projects with insufficient activity over seven days.
+This daily read can help, but does not guarantee exemption from pausing or resume
+an already paused project. Resume a paused project in the Supabase dashboard.
+Only a paid plan guarantees exemption from inactivity pausing.
+See [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing).
+
+GitHub schedules can be delayed, and public repositories have scheduled workflows
+disabled after 60 days without repository activity. Check Actions periodically;
+re-enable the workflow there if needed. See
+[GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+
 ## Verification
 
 - Backend tests and Storage HTTP tests exercise uploads, configuration, rejected
