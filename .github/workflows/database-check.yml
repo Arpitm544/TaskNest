@@ -1,16 +1,16 @@
-name: Daily database check
+name: Database check
 
 "on":
   schedule:
-    # 08:47 IST, away from the busy start of the hour.
-    - cron: '17 3 * * *'
+    # Every ten minutes, offset from the backend health check.
+    - cron: '8,18,28,38,48,58 * * * *'
   workflow_dispatch:
 
 # This job only connects to the database; it needs no repository access.
 permissions: {}
 
 concurrency:
-  group: daily-database-check
+  group: database-check
   cancel-in-progress: false
 
 jobs:

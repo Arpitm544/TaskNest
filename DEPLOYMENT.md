@@ -102,13 +102,13 @@ uses the workspace's shared 750 free instance hours per month. See
 For a precise monitoring interval, use an external uptime monitoring service;
 for continuous availability, use a paid backend instance.
 
-This liveness check does not generate database activity. The separate daily
+This liveness check does not generate database activity. The separate scheduled
 database check below handles that.
 
-## Daily database check
+## Database check
 
 `.github/workflows/database-check.yml` runs a read-only query against the task
-table daily at 03:17 UTC (08:47 IST), independently of the deployed backend.
+table every 10 minutes, independently of the deployed backend.
 It also supports a manual run from GitHub Actions. It never modifies task data
 or prints task records or the connection URL.
 
@@ -122,10 +122,10 @@ To enable it:
    Do not commit the URL or paste it in workflow files.
 2. Merge this workflow into the repository's default branch (`main`). GitHub only
    schedules workflows that exist on the default branch.
-3. Open **Actions → Daily database check → Run workflow** and confirm it succeeds.
+3. Open **Actions → Database check → Run workflow** and confirm it succeeds.
 
 Supabase can pause free projects with insufficient activity over seven days.
-This daily read can help, but does not guarantee exemption from pausing or resume
+These scheduled reads can help, but does not guarantee exemption from pausing or resume
 an already paused project. Resume a paused project in the Supabase dashboard.
 Only a paid plan guarantees exemption from inactivity pausing.
 See [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing).
