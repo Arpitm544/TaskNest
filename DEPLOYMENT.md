@@ -136,7 +136,8 @@ re-enable the workflow there if needed. See
 
 - Backend tests and Storage HTTP tests exercise uploads, configuration, rejected
   file types/sizes, redirect handling, and bucket initialization without live keys.
-- Run the rollback-only SQL smoke test against an isolated database with
+- Run the rollback-only SQL smoke test against an isolated database after the backend
+  has applied its migrations to that database, with
   `psql --dbname="$TEST_DATABASE_URL" -f backend/config/testdata/supabase_smoke.sql`.
 - After adding credentials, run the backend, then test signup, login, profile
   photos, task attachments, workspace tasks, and account deletion in the app.
@@ -151,3 +152,6 @@ separate verified-ownership flow. Do not enable automatic email-based linking.
 
 Bucket MIME restrictions are configured at creation. When the supported upload
 types change, update existing buckets in Supabase Storage settings as well.
+
+Account deletion is blocked while the account owns workspaces. Transfer ownership
+or explicitly delete those workspaces before retrying account deletion.

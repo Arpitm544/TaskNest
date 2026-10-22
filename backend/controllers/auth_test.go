@@ -31,6 +31,9 @@ type accountDB struct {
 	failWrites            bool
 	assignments           int
 	email                 string
+	ownsWorkspace         bool
+	orphanWorkspaceTask   bool
+	workspaceRole         string
 }
 type accountConnector struct{ state *accountDB }
 
@@ -53,6 +56,29 @@ func (c *accountConn) Begin() (driver.Tx, error) {
 	return accountTx{state: c.state, exists: c.state.exists, hash: c.state.hash, assignments: c.state.assignments}, nil
 }
 func (c *accountConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	if strings.Contains(query, "SELECT EXISTS(SELECT 1 FROM workspaces WHERE owner_id") {
+		return &accountRows{columns: []string{"exists"}, values: []driver.Value{c.state.ownsWorkspace}}, nil
+	}
+	if c.state.orphanWorkspaceTask {
+		if strings.Contains(query, "FROM tasks WHERE id") {
+			return &accountRows{columns: []string{"creator_id"}}, nil
+		}
+		if strings.Contains(query, "FROM workspace_tasks WHERE id") {
+			if strings.Contains(query, "ai_milestone_count") {
+				return &accountRows{columns: []string{"count", "creator_id"}, values: []driver.Value{int64(0), nil}}, nil
+			}
+			if strings.Contains(query, "workspace_id FROM") {
+				return &accountRows{columns: []string{"creator_id", "workspace_id"}, values: []driver.Value{nil, int64(7)}}, nil
+			}
+			return &accountRows{columns: []string{"creator_id"}, values: []driver.Value{nil}}, nil
+		}
+		if strings.Contains(query, "SELECT role FROM workspace_members") {
+			return &accountRows{columns: []string{"role"}, values: []driver.Value{c.state.workspaceRole}}, nil
+		}
+		if strings.Contains(query, "SELECT EXISTS(SELECT 1 FROM workspace_members") {
+			return &accountRows{columns: []string{"exists"}, values: []driver.Value{c.state.workspaceRole != ""}}, nil
+		}
+	}
 	if strings.HasPrefix(query, "INSERT INTO users") {
 		if c.state.exists {
 			return &accountRows{columns: []string{"id"}}, nil
@@ -267,5 +293,18 @@ func TestProfileUploadFailureDoesNotSaveTextOrExposeServerErrors(t *testing.T) {
 				t.Fatalf("unsafe error: %s", response.Body)
 			}
 		})
+	}
+}
+
+func TestAccountDeletionRequiresExplicitWorkspaceOwnershipDecision(t *testing.T) {
+	hash, err := utils.HashPassword("current-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := &accountDB{exists: true, hash: hash, ownsWorkspace: true}
+	useAccountDB(t, state)
+	response := callAccountHandler(DeleteAccount, `{"current_password":"current-password"}`)
+	if response.Code != http.StatusConflict || state.writes != 0 || !state.exists || state.committed || !state.rolledBack {
+		t.Fatalf("owner deletion must preserve workspace data: %d %s", response.Code, response.Body)
 	}
 }

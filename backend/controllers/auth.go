@@ -313,6 +313,15 @@ func DeleteAccount(c *gin.Context) {
 	}
 
 	defer tx.Rollback()
+	var ownsWorkspace bool
+	if err := tx.QueryRow("SELECT EXISTS(SELECT 1 FROM workspaces WHERE owner_id = $1)", userID).Scan(&ownsWorkspace); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check workspace ownership"})
+		return
+	}
+	if ownsWorkspace {
+		c.JSON(http.StatusConflict, gin.H{"error": "Transfer ownership or explicitly delete your owned workspaces before deleting your account"})
+		return
+	}
 	for _, statement := range []string{
 		"DELETE FROM task_assignees WHERE user_id = $1",
 		"DELETE FROM task_invitations WHERE LOWER(TRIM(invitee_email)) IN (SELECT LOWER(TRIM(email)) FROM users WHERE id = $1)",

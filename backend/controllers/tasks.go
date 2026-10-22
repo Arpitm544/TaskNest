@@ -89,10 +89,9 @@ func UpdateTask(c *gin.Context) {
 	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
 		// Try workspace_tasks if not in tasks table
 		err = config.DB.QueryRow("SELECT creator_id FROM workspace_tasks WHERE id = $1", taskID).Scan(&creatorID)
 		if err != nil {
@@ -101,7 +100,7 @@ func UpdateTask(c *gin.Context) {
 		}
 	}
 
-	if creatorID != userID {
+	if !creatorID.Valid || creatorID.Int64 != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -226,7 +225,7 @@ func AcceptTask(c *gin.Context) {
 	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var title string
 	var capacity int
 	err := config.DB.QueryRow(
@@ -238,7 +237,7 @@ func AcceptTask(c *gin.Context) {
 		return
 	}
 
-	if creatorID == userID {
+	if creatorID.Valid && creatorID.Int64 == userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You cannot accept your own assignment"})
 		return
 	}
@@ -466,10 +465,10 @@ func InviteUser(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var taskTitle string
 	err := config.DB.QueryRow(`SELECT creator_id, title FROM tasks WHERE id = $1`, taskID).Scan(&creatorID, &taskTitle)
-	if err != nil || creatorID != userID {
+	if err != nil || (!creatorID.Valid || creatorID.Int64 != userID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only creators can invite users"})
 		return
 	}
@@ -647,7 +646,7 @@ func AssignMilestone(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var workspaceID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -658,7 +657,7 @@ func AssignMilestone(c *gin.Context) {
 		}
 	}
 
-	isAuthorized := creatorID == userID
+	isAuthorized := (creatorID.Valid && creatorID.Int64 == userID)
 	if !isAuthorized && workspaceID.Valid {
 		var role string
 		err = config.DB.QueryRow(`SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, workspaceID.Int64, userID).Scan(&role)
@@ -697,7 +696,7 @@ func ReorderMilestones(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var workspaceID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -708,7 +707,7 @@ func ReorderMilestones(c *gin.Context) {
 		}
 	}
 
-	isAuthorized := creatorID == userID
+	isAuthorized := (creatorID.Valid && creatorID.Int64 == userID)
 	if !isAuthorized && workspaceID.Valid {
 		var role string
 		err = config.DB.QueryRow(`SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, workspaceID.Int64, userID).Scan(&role)
@@ -749,7 +748,7 @@ func UpdateTaskStatus(c *gin.Context) {
 		return
 	}
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	inTasksTable := true
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -773,7 +772,7 @@ func UpdateTaskStatus(c *gin.Context) {
 		}
 	}
 
-	if creatorID == userID || !inTasksTable {
+	if (creatorID.Valid && creatorID.Int64 == userID) || !inTasksTable {
 		if inTasksTable {
 			config.DB.Exec(`UPDATE tasks SET status = $1, progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
 				strings.ToLower(input.Status), input.Progress, taskID)
@@ -805,9 +804,9 @@ func DeleteTask(c *gin.Context) {
 	taskID, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
-	if creatorID != userID {
+	if !creatorID.Valid || creatorID.Int64 != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
@@ -966,7 +965,7 @@ func GenerateMilestones(c *gin.Context) {
 	userID := c.MustGet("user_id").(int64)
 
 	var currentCount int
-	var creatorID int64
+	var creatorID sql.NullInt64
 	inTasksTable := true
 
 	err := config.DB.QueryRow("SELECT ai_milestone_count, creator_id FROM tasks WHERE id = $1", taskID).Scan(&currentCount, &creatorID)
@@ -984,7 +983,7 @@ func GenerateMilestones(c *gin.Context) {
 		}
 	}
 
-	if creatorID != userID {
+	if !creatorID.Valid || creatorID.Int64 != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Only the task creator can generate milestones"})
 		return
 	}
@@ -1088,7 +1087,7 @@ func DeleteMilestone(c *gin.Context) {
 	milestoneID, _ := strconv.Atoi(c.Param("mid"))
 	userID := c.MustGet("user_id").(int64)
 
-	var creatorID int64
+	var creatorID sql.NullInt64
 	var workspaceID sql.NullInt64
 	err := config.DB.QueryRow("SELECT creator_id FROM tasks WHERE id = $1", taskID).Scan(&creatorID)
 	if err != nil {
@@ -1100,7 +1099,7 @@ func DeleteMilestone(c *gin.Context) {
 		}
 	}
 
-	isAuthorized := creatorID == userID
+	isAuthorized := (creatorID.Valid && creatorID.Int64 == userID)
 	if !isAuthorized && workspaceID.Valid {
 		// Check workspace role
 		var role string
