@@ -116,38 +116,8 @@ uses the workspace's shared 750 free instance hours per month. See
 For a precise monitoring interval, use an external uptime monitoring service;
 for continuous availability, use a paid backend instance.
 
-This liveness check does not generate database activity. The separate scheduled
-database check below handles that.
-
-## Database check
-
-`.github/workflows/database-check.yml` runs a read-only query against the task
-table every 10 minutes, independently of the deployed backend.
-It also supports a manual run from GitHub Actions. It never modifies task data
-or prints task records or the connection URL.
-
-To enable it:
-
-1. In GitHub **Settings → Secrets and variables → Actions**, add the repository
-   secret `SUPABASE_DATABASE_URL`. Use your Supabase **Session pooler** connection
-   URI, with the real password and `sslmode=require`. GitHub's standard runners
-   need an IPv4-compatible connection; a direct Supabase URI may require IPv6.
-   The existing backend `DATABASE_URL` can be reused if it uses the Session pooler.
-   Do not commit the URL or paste it in workflow files.
-2. Merge this workflow into the repository's default branch (`main`). GitHub only
-   schedules workflows that exist on the default branch.
-3. Open **Actions → Database check → Run workflow** and confirm it succeeds.
-
-Supabase can pause free projects with insufficient activity over seven days.
-These scheduled reads can help, but do not guarantee exemption from pausing or resume
-an already paused project. Resume a paused project in the Supabase dashboard.
-Only a paid plan guarantees exemption from inactivity pausing.
-See [Supabase project pausing](https://supabase.com/docs/guides/platform/free-project-pausing).
-
-GitHub schedules can be delayed, and public repositories have scheduled workflows
-disabled after 60 days without repository activity. Check Actions periodically;
-re-enable the workflow there if needed. See
-[GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+This liveness check does not generate database activity. The scheduled database
+check has been removed.
 
 ## Verification
 
