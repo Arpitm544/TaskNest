@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from './context/AuthContext.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { WorkspaceProvider } from './context/WorkspaceContext.jsx';
@@ -15,8 +16,9 @@ import CommandPalette from './components/CommandPalette.jsx';
 
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-bg-main">
-      <div className="loader" />
+    <div className="flex items-center justify-center min-h-screen bg-bg-main" role="status">
+      <Loader2 size={32} className="animate-spin text-accent" aria-hidden="true" />
+      <span className="sr-only">Loading page</span>
     </div>
   );
 }
@@ -30,6 +32,7 @@ function RequireAuth({ children }) {
 
 function App() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { user, loading, refreshAuth, logout } = useAuth();
 
   const handleLogout = useCallback(async () => {
@@ -37,12 +40,12 @@ function App() {
     navigate('/', { replace: true });
   }, [logout, navigate]);
 
-  if (loading) return <PageLoader />;
+  if (loading && pathname !== '/') return <PageLoader />;
 
   return (
     <ThemeProvider>
       <WorkspaceProvider>
-        <CommandPalette onLogout={handleLogout} />
+        {!loading && <CommandPalette onLogout={handleLogout} />}
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
           <Routes>

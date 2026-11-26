@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 const WorkspaceContext = createContext();
 
 export function WorkspaceProvider({ children }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [workspaces, setWorkspaces] = useState([]);
   const [currentWorkspace, setCurrentWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,6 +23,8 @@ export function WorkspaceProvider({ children }) {
   }, [user]);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (user) {
       fetchWorkspaces();
     } else {
@@ -30,7 +32,7 @@ export function WorkspaceProvider({ children }) {
       setCurrentWorkspace(null);
       localStorage.removeItem('selectedWorkspaceId');
     }
-  }, [user, fetchWorkspaces]);
+  }, [authLoading, user, fetchWorkspaces]);
 
   // Load from localStorage once workspaces are available
   useEffect(() => {
